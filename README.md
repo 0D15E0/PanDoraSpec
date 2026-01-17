@@ -8,6 +8,7 @@ PanDoraSpec is a CLI tool that performs deep technical due diligence on APIs to 
 
 ## 📦 Installation
 
+```bash
 pip install pandoraspec
 ```
 
