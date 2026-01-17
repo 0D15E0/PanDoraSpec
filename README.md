@@ -2,7 +2,7 @@
 
 **The Open DORA Compliance Engine for OpenAPI Specs.**
 
-PanDoraSpec is a CLI tool that performs deep technical due diligence on your APIs to verify compliance with **DORA (Digital Operational Resilience Act)** requirements. It compares your OpenAPI/Swagger specifications against real-world implementation to detect schema drift, resilience gaps, and security issues.
+PanDoraSpec is a CLI tool that performs deep technical due diligence on APIs to verify compliance with **DORA (Digital Operational Resilience Act)** requirements. It compares OpenAPI/Swagger specifications against real-world implementation to detect schema drift, resilience gaps, and security issues.
 
 ---
 
