@@ -1,33 +1,45 @@
 import typer
+import yaml
+import os
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.text import Text
 from .core import AuditEngine
 from .reporting import generate_report
 
 app = typer.Typer(help="DORA Audit CLI - Verify Compliance of OpenAI Specs")
 console = Console()
 
-@app.command(name="scan")
-def scan(
-    schema_url: str = typer.Argument(..., help="URL or path to OpenAPI schema"),
+def load_config(config_path: str):
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    return {}
+
+def run_audit(
+    target: str = typer.Argument(..., help="URL or path to OpenAPI schema"),
     api_key: str = typer.Option(None, "--key", "-k", help="API Key for authenticated endpoints"),
-    vendor: str = typer.Option("Vendor", "--vendor", "-v", help="Vendor name for the report")
+    vendor: str = typer.Option("Vendor", "--vendor", "-v", help="Vendor name for the report"),
+    config: str = typer.Option(None, "--config", "-c", help="Path to .yaml configuration file")
 ):
     """
     Run a DORA audit against an OpenAPI schema.
     """
     console.print(Panel(f"[bold blue]Starting DORA Audit for {vendor}[/bold blue]", border_style="blue"))
-    console.print(f"🔎 Scanning [bold]{schema_url}[/bold]...")
+    console.print(f"🔎 Scanning [bold]{target}[/bold]...")
+
+    # 1. Load Config
+    seed_data = {}
+    if config:
+        config_data = load_config(config)
+        seed_data = config_data.get("seed_data", {})
+        
+        if seed_data:
+            console.print(f"[green]Loaded {len(seed_data)} seed values from {config}[/green]")
 
     try:
-        engine = AuditEngine(schema_url=schema_url, api_key=api_key)
-        
-        # We need a progress spinner, but AuditEngine is synchronous and prints logs.
-        # For MVP CLI, we'll let AuditEngine logs show or suppress them?
-        # The user requested "Rich terminal output".
-        # Let's run it.
+        # 2. Pass seed_data to Engine
+        engine = AuditEngine(target=target, api_key=api_key, seed_data=seed_data)
         
         results = engine.run_full_audit()
         
@@ -66,5 +78,8 @@ def scan(
         console.print(f"[bold red]Error:[/bold red] {str(e)}")
         raise typer.Exit(code=1)
 
+def main():
+    typer.run(run_audit)
+
 if __name__ == "__main__":
-    app()
+    main()

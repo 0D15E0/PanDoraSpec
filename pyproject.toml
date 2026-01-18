@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pandoraspec"
-version = "0.1.4"
+version = "0.2.0"
 description = "DORA Compliance Auditor for OpenAPI Specs"
 readme = "README.md"
 authors = [{ name = "Ulises Merlan", email = "ulimerlan@gmail.com" }]
@@ -21,7 +21,7 @@ dependencies = [
 
 [project.scripts]
 # This maps the terminal command 'pandoraspec' to your python code
-pandoraspec = "pandoraspec.cli:app" 
+pandoraspec = "pandoraspec.cli:main" 
 
 [tool.setuptools.packages.find]
 where = ["."]

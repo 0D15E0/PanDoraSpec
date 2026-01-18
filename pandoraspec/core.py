@@ -1,6 +1,7 @@
 import schemathesis
-from typing import List, Dict
+from typing import List, Dict, Any
 import requests
+import re
 from schemathesis import checks
 from schemathesis.specs.openapi import checks as oai_checks
 from schemathesis.checks import CheckContext, ChecksConfig
@@ -8,88 +9,194 @@ import html
 import os
 
 class AuditEngine:
-    def __init__(self, schema_url: str, base_url: str = None, api_key: str = None):
-        self.schema_url = schema_url
+    def __init__(self, target: str, api_key: str = None, seed_data: Dict[str, Any] = None):
+        self.target = target
         self.api_key = api_key
-        
-        # --- FIXED LOCALHOST HANDLING ---
-        # If running in Docker (implied by this environment), 'localhost' refers to the container.
-        # We need to try to reach the host machine.
-        working_schema_url = schema_url
-        if "localhost" in schema_url or "127.0.0.1" in schema_url:
-            # Try host.docker.internal first (standard for Docker Desktop)
-            # We DON'T change self.schema_url so the report still shows what the user entered.
-            try:
-                print(f"DEBUG: Attempting to resolve localhost URL using host.docker.internal")
-                test_url = schema_url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
-                requests.head(test_url, timeout=2) # Quick check
-                working_schema_url = test_url
-                print(f"DEBUG: Successfully resolved to {working_schema_url}")
-            except Exception:
-                print(f"DEBUG: Failed to reach host.docker.internal, trying original")
-                pass
+        self.seed_data = seed_data or {}
+        self.base_url = None
+        self.dynamic_cache = {} # Cache for dynamic seed values
 
         try:
-            if os.path.exists(working_schema_url) and os.path.isfile(working_schema_url):
-                 print(f"DEBUG: Loading schema from local file: {working_schema_url}")
-                 self.schema = schemathesis.openapi.from_path(working_schema_url)
+            if os.path.exists(target) and os.path.isfile(target):
+                 print(f"DEBUG: Loading schema from local file: {target}")
+                 self.schema = schemathesis.openapi.from_path(target)
             else:
-                 self.schema = schemathesis.openapi.from_url(working_schema_url)
+                 self.schema = schemathesis.openapi.from_url(target)
             
-            # 1. Use explicitly provided base_url if available
-            if base_url:
-                self.schema.base_url = base_url
-                self.base_url = base_url
+            # Priority 1: Extract from the 'servers' field in the spec
+            resolved_url = None
+            if hasattr(self.schema, "raw_schema"):
+                servers = self.schema.raw_schema.get("servers", [])
+                if servers and isinstance(servers, list) and len(servers) > 0:
+                    spec_server_url = servers[0].get("url")
+                    if spec_server_url:
+                        resolved_url = spec_server_url
+                        print(f"DEBUG: Found server URL in specification: {resolved_url}")
+            
+            # Priority 2: Use whatever schemathesis resolved automatically (fallback)
+            if not resolved_url:
+                resolved_url = getattr(self.schema, "base_url", None)
+                print(f"DEBUG: Falling back to Schemathesis resolved base_url: {resolved_url}")
+
+            if not resolved_url and self.target and not os.path.exists(self.target):
+                # Fallback: Derive from target URL (e.g., remove swagger.json)
+                try:
+                    from urllib.parse import urlparse, urlunparse
+                    parsed = urlparse(self.target)
+                    path_parts = parsed.path.split('/')
+                    # Simple heuristic: remove the last segment (e.g. swagger.json) to get base
+                    if '.' in path_parts[-1]: 
+                        path_parts.pop()
+                    new_path = '/'.join(path_parts)
+                    resolved_url = urlunparse(parsed._replace(path=new_path))
+                    print(f"DEBUG: Derived base_url from schema_url: {resolved_url}")
+                except Exception as e:
+                    print(f"DEBUG: Failed to derive base_url from schema_url: {e}")
+
+            print(f"DEBUG: Final resolved base_url for engine: {resolved_url}")
+            self.base_url = resolved_url
+            if resolved_url:
+                try:
+                    self.schema.base_url = resolved_url
+                except Exception:
+                        pass
+        except Exception as e:
+             # Handle invalid URL or schema loading error gracefully
+             print(f"Error loading schema: {e}")
+             if target and (target.startswith("http") or os.path.exists(target)):
+                pass # Allow to continue if it's just a warning, but schemathesis might fail later
+             else:
+                raise ValueError(f"Failed to load OpenAPI schema from {target}. Error: {str(e)}")
+
+    def _resolve_dynamic_value(self, config_value: Any) -> Any:
+        """Resolves dynamic seed values like `from_endpoint`"""
+        if not isinstance(config_value, dict) or "from_endpoint" not in config_value:
+            return config_value
+
+        endpoint_def = config_value["from_endpoint"]
+        if endpoint_def in self.dynamic_cache:
+            return self.dynamic_cache[endpoint_def]
+
+        try:
+            method, path = endpoint_def.split(" ", 1)
+            
+            # Interpolate path parameters (e.g., /user/{id}) from general seeds
+            if '{' in path:
+                general_seeds = self.seed_data.get('general', {})
+                
+                def replace_param(match):
+                    param_name = match.group(1)
+                    if param_name in general_seeds:
+                        return str(general_seeds[param_name])
+                    print(f"WARNING: Missing seed value for {{{param_name}}} in dynamic endpoint {endpoint_def}")
+                    return match.group(0) # Leave as is
+
+                path = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, path)
+
+            url = f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
+            
+            headers = {}
+            if self.api_key:
+                 auth_header = self.api_key if self.api_key.lower().startswith("bearer ") else f"Bearer {self.api_key}"
+                 headers["Authorization"] = auth_header
+
+            print(f"AUDIT LOG: Resolving dynamic seed from {method} {path}")
+            response = requests.request(method, url, headers=headers)
+            
+            if response.status_code >= 400:
+                print(f"WARNING: Dynamic seed request failed with {response.status_code}")
+                return None
+
+            result = None
+            extract_key = config_value.get("extract")
+            regex_pattern = config_value.get("regex")
+
+            # JSON Extraction
+            if extract_key:
+                try:
+                    json_data = response.json()
+                    # Simple key traversal for now (e.g. 'data.id')
+                    keys = extract_key.split('.')
+                    val = json_data
+                    for k in keys:
+                        if isinstance(val, dict):
+                            val = val.get(k)
+                        else:
+                            val = None
+                            break
+                    result = val
+                except Exception:
+                    print("WARNING: Failed to parse JSON or extract key")
             else:
-                # 2. Priority 1: Extract from the 'servers' field in the spec
-                resolved_url = None
-                if hasattr(self.schema, "raw_schema"):
-                    servers = self.schema.raw_schema.get("servers", [])
-                    if servers and isinstance(servers, list) and len(servers) > 0:
-                        spec_server_url = servers[0].get("url")
-                        if spec_server_url:
-                            resolved_url = spec_server_url
-                            print(f"DEBUG: Found server URL in specification: {resolved_url}")
-                
-                # 3. Priority 2: Use whatever schemathesis resolved automatically (fallback)
-                if not resolved_url:
-                    resolved_url = getattr(self.schema, "base_url", None)
-                    print(f"DEBUG: Falling back to Schemathesis resolved base_url: {resolved_url}")
+                 # Default to text body
+                 result = response.text
 
-                if not resolved_url and self.schema_url:
-                    # Fallback: Derive from schema_url (e.g., remove swagger.json)
-                    try:
-                        from urllib.parse import urlparse, urlunparse
-                        parsed = urlparse(self.schema_url)
-                        path_parts = parsed.path.split('/')
-                        # Simple heuristic: remove the last segment (e.g. swagger.json) to get base
-                        if '.' in path_parts[-1]: 
-                            path_parts.pop()
-                        new_path = '/'.join(path_parts)
-                        resolved_url = urlunparse(parsed._replace(path=new_path))
-                        print(f"DEBUG: Derived base_url from schema_url: {resolved_url}")
-                    except Exception as e:
-                        print(f"DEBUG: Failed to derive base_url from schema_url: {e}")
-
-                print(f"DEBUG: Final resolved base_url for engine: {resolved_url}")
-                
-                 # Fix base_url if it's localhost as well
-                if resolved_url and ("localhost" in resolved_url or "127.0.0.1" in resolved_url):
-                     print(f"DEBUG: Adjusting base_url '{resolved_url}' for Docker environment")
-                     resolved_url = resolved_url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
-
-                self.base_url = resolved_url
-                if resolved_url:
-                    try:
-                        self.schema.base_url = resolved_url
-                    except Exception:
-                         pass
+            # Regex Extraction
+            if regex_pattern and result is not None:
+                match = re.search(regex_pattern, str(result))
+                if match:
+                    # Return first group if exists, else the whole match
+                    result = match.group(1) if match.groups() else match.group(0)
+            
+            self.dynamic_cache[endpoint_def] = result
+            return result
 
         except Exception as e:
-            if isinstance(e, AttributeError) and "base_url" in str(e):
-                 self.base_url = None
-            else:
-                raise ValueError(f"Failed to load OpenAPI schema from {schema_url}. Error: {str(e)}")
+            print(f"ERROR: Failed to resolve dynamic seed: {e}")
+            return None
+
+    def _apply_seed_data(self, case):
+        """Helper to inject seed data into test cases with hierarchy: General < Verbs < Endpoints"""
+        if not self.seed_data:
+            return
+
+        # Determine if using hierarchical structure
+        is_hierarchical = any(k in self.seed_data for k in ['general', 'verbs', 'endpoints'])
+        
+        if is_hierarchical:
+            # 1. Start with General
+            merged_data = self.seed_data.get('general', {}).copy()
+            
+            # 2. Apply Verb-specific
+            if hasattr(case, 'operation'):
+                method = case.operation.method.upper()
+                path = case.operation.path
+                
+                verb_data = self.seed_data.get('verbs', {}).get(method, {})
+                merged_data.update(verb_data)
+                
+                # 3. Apply Endpoint-specific
+                # precise match on path template
+                endpoint_data = self.seed_data.get('endpoints', {}).get(path, {}).get(method, {})
+                merged_data.update(endpoint_data)
+        else:
+            # Legacy flat structure
+            merged_data = self.seed_data.copy() # Copy to avoid mutating original config
+
+        # Resolve dynamic values for the final merged dataset
+        resolved_data = {}
+        for k, v in merged_data.items():
+            resolved_val = self._resolve_dynamic_value(v)
+            if resolved_val is not None:
+                resolved_data[k] = resolved_val
+
+        # Inject into Path Parameters (e.g., /users/{userId})
+        if hasattr(case, 'path_parameters') and case.path_parameters:
+            for key in case.path_parameters:
+                if key in resolved_data:
+                    case.path_parameters[key] = resolved_data[key]
+
+        # Inject into Query Parameters (e.g., ?status=active)
+        if hasattr(case, 'query') and case.query:
+            for key in case.query:
+                if key in resolved_data:
+                    case.query[key] = resolved_data[key]
+                    
+        # Inject into Headers (e.g., X-Tenant-ID)
+        if hasattr(case, 'headers') and case.headers:
+            for key in case.headers:
+                if key in resolved_data:
+                    case.headers[key] = str(resolved_data[key])
 
     def run_drift_check(self) -> List[Dict]:
         """
@@ -119,9 +226,6 @@ class AuditEngine:
             # Handle Result type (Ok/Err) wrapping if present
             operation = op.ok() if hasattr(op, "ok") else op
             
-            operation_path = f"{operation.method.upper()} {operation.path}"
-            print(f"AUDIT LOG: Testing endpoint {operation_path}")
-            
             try:
                 # Generate test case
                 try:
@@ -136,20 +240,27 @@ class AuditEngine:
                 if not case:
                     continue
 
-                # Prepare headers
+                self._apply_seed_data(case)
+
+                formatted_path = operation.path
+                if case.path_parameters:
+                    for key, value in case.path_parameters.items():
+                         formatted_path = formatted_path.replace(f"{{{key}}}", f"{{{key}:{value}}}")
+                
+                print(f"AUDIT LOG: Testing endpoint {operation.method.upper()} {formatted_path}")
+
                 headers = {}
                 if self.api_key:
                     auth_header = self.api_key if self.api_key.lower().startswith("bearer ") else f"Bearer {self.api_key}"
                     headers["Authorization"] = auth_header
 
                 # Call the API
-                target_url = f"{self.base_url.rstrip('/')}/{operation.path.lstrip('/')}"
+                target_url = f"{self.base_url.rstrip('/')}/{formatted_path.lstrip('/')}"
                 print(f"AUDIT LOG: Calling {operation.method.upper()} {target_url}")
                 
                 response = case.call(base_url=self.base_url, headers=headers)
                 print(f"AUDIT LOG: Response Status Code: {response.status_code}")
                 
-                # --- FIXED VALIDATION LOGIC ---
                 # We manually call the check function to ensure arguments are passed correctly.
                 for check_name in check_names:
                     check_func = check_map[check_name]
@@ -236,6 +347,9 @@ class AuditEngine:
         if not ops:
             return []
         
+        print("AUDIT LOG: Starting Module B: Resilience Stress Test (flooding requests)...")
+        
+        
         operation = ops[0].ok() if hasattr(ops[0], "ok") else ops[0]
         
         # Simulate flooding
@@ -251,6 +365,8 @@ class AuditEngine:
                     case = None
             
             if case:
+                self._apply_seed_data(case)
+
                 headers = {}
                 if self.api_key:
                     auth_header = self.api_key if self.api_key.lower().startswith("bearer ") else f"Bearer {self.api_key}"

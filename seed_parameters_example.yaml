@@ -1,0 +1,41 @@
+# Seed Data Configuration
+# Hierarchy: General < Verbs < Endpoints
+
+seed_data:
+  # 1. General: Applies to all endpoints unless overridden
+  general:
+    petId: 1
+    orderId: 5
+    username: "user1"
+    lookup_id: "user1" # Used for the parameterized dependency below
+  
+  # 2. Verbs: Applies to specific HTTP methods (overrides general)
+  verbs:
+    POST:
+      petId: 10
+      
+  # 3. Endpoints: Specific endpoint + verb (overrides verbs & general)
+  endpoints:
+    /pet/{petId}:
+      POST:
+        petId: 20
+    
+    # --- Dynamic Seed Examples ---
+
+    # Example 1: Parameterized URL + JSON Extraction
+    # Uses {lookup_id} from general seeds to build the URL.
+    /user/{username}:
+      GET:
+        username:
+          from_endpoint: "GET /user/{lookup_id}" 
+          extract: "username"
+
+    # Example 2: Regex Extraction
+    # Extracts a session ID from a string message.
+    # e.g. "message": "logged in user session:12345" -> "12345"
+    /user/login/check:
+      GET:
+        session_id: 
+          from_endpoint: "GET /user/login"
+          extract: "message" 
+          regex: "logged in user session:([0-9]+)"
