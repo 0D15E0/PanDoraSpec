@@ -20,7 +20,8 @@ def run_audit(
     target: str = typer.Argument(..., help="URL or path to OpenAPI schema"),
     api_key: str = typer.Option(None, "--key", "-k", help="API Key for authenticated endpoints"),
     vendor: str = typer.Option("Vendor", "--vendor", "-v", help="Vendor name for the report"),
-    config: str = typer.Option(None, "--config", "-c", help="Path to .yaml configuration file")
+    config: str = typer.Option(None, "--config", "-c", help="Path to .yaml configuration file"),
+    base_url: str = typer.Option(None, "--base-url", "-b", help="Override API Base URL")
 ):
     """
     Run a DORA audit against an OpenAPI schema.
@@ -39,7 +40,7 @@ def run_audit(
 
     try:
         # 2. Pass seed_data to Engine
-        engine = AuditEngine(target=target, api_key=api_key, seed_data=seed_data)
+        engine = AuditEngine(target=target, api_key=api_key, seed_data=seed_data, base_url=base_url)
         
         results = engine.run_full_audit()
         

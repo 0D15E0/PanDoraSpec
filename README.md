@@ -67,6 +67,12 @@ pandoraspec https://api.example.com/spec.json --vendor "Stripe" --key "sk_live_.
 pandoraspec ./openapi.yaml
 ```
 
+### Override Base URL
+If your OpenAPI spec uses variables (e.g. `https://{env}.api.com`) or you want to audit a specific target:
+```bash
+pandoraspec https://api.example.com/spec.json --base-url https://staging.api.example.com
+```
+
 ---
 
 ## 🏎️ Zero-Config Testing (DORA Compliance)
