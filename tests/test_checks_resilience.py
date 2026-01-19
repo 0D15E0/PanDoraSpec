@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock
 from pandoraspec.checks.resilience import run_resilience_tests
 from pandoraspec.constants import FLOOD_REQUEST_COUNT

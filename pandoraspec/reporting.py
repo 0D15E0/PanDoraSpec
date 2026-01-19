@@ -1,9 +1,9 @@
 import os
 from datetime import datetime
-from jinja2 import Environment, FileSystemLoader
+import os
+from datetime import datetime
 from weasyprint import HTML
 
-TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 REPORTS_DIR = "reports"
 
 if not os.path.exists(REPORTS_DIR):

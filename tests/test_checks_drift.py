@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock, patch
 from pandoraspec.checks.drift import run_drift_check
 

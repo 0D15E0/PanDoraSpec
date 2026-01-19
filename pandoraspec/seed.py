@@ -8,45 +8,101 @@ class SeedManager:
         self.base_url = base_url
         self.api_key = api_key
         self.dynamic_cache = {}
+        self._resolving_stack = set() # To detect recursion cycles
+
+    def _get_seed_config(self, method: str, path: str) -> Dict[str, Any]:
+        """Merges seed data for a specific endpoint (General < Verb < Endpoint)"""
+        if not self.seed_data:
+            return {}
+
+        is_hierarchical = any(k in self.seed_data for k in ['general', 'verbs', 'endpoints'])
+        
+        if is_hierarchical:
+            # 1. General
+            merged_data = self.seed_data.get('general', {}).copy()
+            # 2. Verb
+            verb_data = self.seed_data.get('verbs', {}).get(method.upper(), {})
+            merged_data.update(verb_data)
+            # 3. Endpoint
+            endpoint_data = self.seed_data.get('endpoints', {}).get(path, {}).get(method.upper(), {})
+            merged_data.update(endpoint_data)
+        else:
+            merged_data = self.seed_data.copy()
+            
+        return merged_data
 
     def _resolve_dynamic_value(self, config_value: Any) -> Any:
-        """Resolves dynamic seed values like `from_endpoint`"""
+        """Resolves dynamic seed values with recursion support"""
         if not isinstance(config_value, dict) or "from_endpoint" not in config_value:
             return config_value
 
         endpoint_def = config_value["from_endpoint"]
+        
+        # Check cache first
         if endpoint_def in self.dynamic_cache:
             return self.dynamic_cache[endpoint_def]
 
-        try:
-            method, path = endpoint_def.split(" ", 1)
-            
-            # Interpolate path parameters (e.g., /user/{id}) from general seeds
-            if '{' in path:
-                general_seeds = self.seed_data.get('general', {})
-                
-                def replace_param(match):
-                    param_name = match.group(1)
-                    if param_name in general_seeds:
-                        return str(general_seeds[param_name])
-                    print(f"WARNING: Missing seed value for {{{param_name}}} in dynamic endpoint {endpoint_def}")
-                    return match.group(0) # Leave as is
+        # Cycle detection
+        if endpoint_def in self._resolving_stack:
+            print(f"WARNING: Circular dependency detected for {endpoint_def}. Breaking cycle.")
+            return None
+        
+        self._resolving_stack.add(endpoint_def)
 
-                path = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, path)
+        try:
+            try:
+                method, path = endpoint_def.split(" ", 1)
+            except ValueError:
+                print(f"WARNING: Invalid endpoint definition '{endpoint_def}'. Expected 'METHOD /path'")
+                return None
 
             if not self.base_url:
                 print("WARNING: Cannot resolve dynamic seed, base_url is not set.")
                 return None
 
-            url = f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
+            # Recursive Step: Resolve dependencies BEFORE making the request
+            # We get the seed config for the *upstream* endpoint we are about to call
+            upstream_seed_config = self._get_seed_config(method, path)
+            resolved_upstream_params = {}
             
+            for k, v in upstream_seed_config.items():
+                resolved_val = self._resolve_dynamic_value(v)
+                if resolved_val is not None:
+                    resolved_upstream_params[k] = resolved_val
+
+            # URL Parameter Injection
+            # Iterate through resolved params to inject into path (e.g. /users/{id})
+            # Also fall back to general seeds if not explicitly resolved above (legacy behavior)
+            general_seeds = self.seed_data.get('general', {}) if self.seed_data else {}
+            
+            def replace_param(match):
+                param_name = match.group(1)
+                # specific resolved param > general seed
+                if param_name in resolved_upstream_params:
+                    return str(resolved_upstream_params[param_name])
+                if param_name in general_seeds:
+                     return str(general_seeds[param_name])
+                print(f"WARNING: Missing seed value for {{{param_name}}} in dynamic endpoint {endpoint_def}")
+                return match.group(0)
+
+            url_path = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, path)
+            url = f"{self.base_url.rstrip('/')}/{url_path.lstrip('/')}"
+            
+            # Prepare Request
             headers = {}
             if self.api_key:
                  auth_header = self.api_key if self.api_key.lower().startswith("bearer ") else f"Bearer {self.api_key}"
                  headers["Authorization"] = auth_header
 
-            print(f"AUDIT LOG: Resolving dynamic seed from {method} {path}")
-            response = requests.request(method, url, headers=headers)
+            # Query Params from unused resolved seeds
+            query_params = {}
+            for k, v in resolved_upstream_params.items():
+                 # If it wasn't used in the path, put it in query params
+                 if f"{{{k}}}" not in path:
+                     query_params[k] = v
+
+            print(f"AUDIT LOG: Resolving dynamic seed from {method} {url_path}")
+            response = requests.request(method, url, headers=headers, params=query_params)
             
             if response.status_code >= 400:
                 print(f"WARNING: Dynamic seed request failed with {response.status_code}")
@@ -60,12 +116,17 @@ class SeedManager:
             if extract_key:
                 try:
                     json_data = response.json()
-                    # Simple key traversal for now (e.g. 'data.id')
                     keys = extract_key.split('.')
                     val = json_data
                     for k in keys:
                         if isinstance(val, dict):
                             val = val.get(k)
+                        elif isinstance(val, list) and k.isdigit():
+                            try:
+                                val = val[int(k)]
+                            except IndexError:
+                                val = None
+                                break
                         else:
                             val = None
                             break
@@ -73,14 +134,12 @@ class SeedManager:
                 except Exception:
                     print("WARNING: Failed to parse JSON or extract key")
             else:
-                 # Default to text body
                  result = response.text
 
             # Regex Extraction
             if regex_pattern and result is not None:
                 match = re.search(regex_pattern, str(result))
                 if match:
-                    # Return first group if exists, else the whole match
                     result = match.group(1) if match.groups() else match.group(0)
             
             self.dynamic_cache[endpoint_def] = result
@@ -89,34 +148,20 @@ class SeedManager:
         except Exception as e:
             print(f"ERROR: Failed to resolve dynamic seed: {e}")
             return None
+        finally:
+            self._resolving_stack.discard(endpoint_def)
 
     def apply_seed_data(self, case):
         """Helper to inject seed data into test cases with hierarchy: General < Verbs < Endpoints"""
         if not self.seed_data:
-            return
+            return set()
 
-        # Determine if using hierarchical structure
-        is_hierarchical = any(k in self.seed_data for k in ['general', 'verbs', 'endpoints'])
-        
-        if is_hierarchical:
-            # 1. Start with General
-            merged_data = self.seed_data.get('general', {}).copy()
-            
-            # 2. Apply Verb-specific
-            if hasattr(case, 'operation'):
-                method = case.operation.method.upper()
-                path = case.operation.path
-                
-                verb_data = self.seed_data.get('verbs', {}).get(method, {})
-                merged_data.update(verb_data)
-                
-                # 3. Apply Endpoint-specific
-                # precise match on path template
-                endpoint_data = self.seed_data.get('endpoints', {}).get(path, {}).get(method, {})
-                merged_data.update(endpoint_data)
+        if hasattr(case, 'operation'):
+            method = case.operation.method.upper()
+            path = case.operation.path
+            merged_data = self._get_seed_config(method, path)
         else:
-            # Legacy flat structure
-            merged_data = self.seed_data.copy() # Copy to avoid mutating original config
+            merged_data = self._get_seed_config("", "")
 
         # Resolve dynamic values for the final merged dataset
         resolved_data = {}
@@ -125,20 +170,26 @@ class SeedManager:
             if resolved_val is not None:
                 resolved_data[k] = resolved_val
 
+        seeded_keys = set()
         # Inject into Path Parameters (e.g., /users/{userId})
         if hasattr(case, 'path_parameters') and case.path_parameters:
             for key in case.path_parameters:
                 if key in resolved_data:
                     case.path_parameters[key] = resolved_data[key]
+                    seeded_keys.add(key)
 
         # Inject into Query Parameters (e.g., ?status=active)
         if hasattr(case, 'query') and case.query:
             for key in case.query:
                 if key in resolved_data:
                     case.query[key] = resolved_data[key]
+                    seeded_keys.add(key)
                     
         # Inject into Headers (e.g., X-Tenant-ID)
         if hasattr(case, 'headers') and case.headers:
             for key in case.headers:
                 if key in resolved_data:
                     case.headers[key] = str(resolved_data[key])
+                    seeded_keys.add(key)
+        
+        return seeded_keys

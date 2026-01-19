@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock
 from pandoraspec.checks.security import run_security_hygiene
 

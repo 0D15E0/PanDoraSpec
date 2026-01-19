@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pandoraspec"
-version = "0.2.1"
+version = "0.2.2"
 description = "DORA Compliance Auditor for OpenAPI Specs"
 readme = "README.md"
 authors = [{ name = "Ulises Merlan", email = "ulimerlan@gmail.com" }]
@@ -15,9 +15,13 @@ dependencies = [
     "typer[all]",
     "rich",
     "weasyprint",
-    "jinja2",
-    "requests",
-    "pytest"
+    "requests"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "responses"
 ]
 
 [project.scripts]

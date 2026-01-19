@@ -1,8 +1,9 @@
 import html
-from typing import List, Dict, Any
+from typing import List, Dict
 from schemathesis import checks
 from schemathesis.specs.openapi import checks as oai_checks
 from schemathesis.checks import CheckContext, ChecksConfig
+from urllib.parse import unquote
 from ..seed import SeedManager
 
 def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManager) -> List[Dict]:
@@ -47,12 +48,17 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
             if not case:
                 continue
 
-            seed_manager.apply_seed_data(case)
+            seeded_keys = seed_manager.apply_seed_data(case) or set()
 
             formatted_path = operation.path
             if case.path_parameters:
                 for key, value in case.path_parameters.items():
-                        formatted_path = formatted_path.replace(f"{{{key}}}", f"{{{key}:{value}}}")
+                        if key in seeded_keys:
+                            display_value = unquote(str(value))
+                        else:
+                            display_value = "random"
+                        
+                        formatted_path = formatted_path.replace(f"{{{key}}}", f"{{{key}:{display_value}}}")
             
             print(f"AUDIT LOG: Testing endpoint {operation.method.upper()} {formatted_path}")
 

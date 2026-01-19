@@ -15,39 +15,7 @@ pip install pandoraspec
 ### System Requirements
 The PDF report generation requires `weasyprint`, which depends on **Pango**.
 
-**macOS:**
-```bash
-brew install pango
-```
-
-**Debian / Ubuntu:**
-```bash
-sudo apt-get install libpango-1.0-0 libpangoft2-1.0-0
-```
-
-## 🛠️ Development Setup
-
-To run the CLI locally without reinstalling after every change:
-
-1. **Clone & CD**:
-```bash
-git clone ...
-cd pandoraspec
-```
-
-2. **Create & Activate Virtual Environment**:
-It's recommended to use a virtual environment to keep dependencies isolated.
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Editable Install**:
-```bash
-pip install -e .
-```
-This links the `pandoraspec` command directly to your source code. Any changes you make will be reflected immediately.
-
+  
 ## 🚀 Usage
 
 Run the audit directly from your terminal.
@@ -119,36 +87,62 @@ seed_data:
         limit: 10
 ```
 
-### 🔗 Dynamic Seed Data (Chaining Requests)
-You can even test **dependency chains** where one endpoint requires data from another (e.g., get a User ID from a search result to query their profile).
+### 🔗 Dynamic Seed Data (Recursive Chaining)
+You can even test **dependency chains** where one endpoint requires data from another. PanDoraSpec handles **recursion** automatically: if Endpoint A needs data from B, and B needs data from C, it will resolve the entire chain in order.
 
 **Supported Features:**
-- **Dynamic Resolution:** Fetch a value from another API call before running the test.
-- **Extraction:** Extract values from JSON responses or plain text.
+- **Recursive Resolution:** Automatically resolves upstream dependencies (chains of `from_endpoint`).
+- **Deep Extraction:** Extract values from nested JSON using dot notation, including list indices (e.g., `data.items.0.id`).
 - **Parameter Interpolation:** Use `{param}` in the dependency URL to chain multiple steps.
+- **Smart Logging:** Fuzzed values are masked as `random` in logs to keep output clean, while your seeded values are shown clearly.
 
 ```yaml
 endpoints:
-  /user/{username}:
+  # Level 1: Get the current user ID
+  /user/me:
     GET:
-      username:
-        # 1. Fetch the user list first
-        # 2. Extract the 'username' field from the response
-        from_endpoint: "GET /users/search?role=admin"
-        extract: "data.items.0.username"
+      authorization: "Bearer static-token"
 
+  # Level 2: Use that ID to get their orders
+  /users/{userId}/orders:
+    GET:
+      userId:
+        from_endpoint: "GET /user/me"
+        extract: "data.id"  # JSON extraction
+
+  # Level 3: Get details of the FIRST order from that list (Recursive!)
   /orders/{orderId}:
     GET:
       orderId:
-        # 1. Use the {userId} from our general seeds
-        # 2. Call /users/{userId}/latest-order
-        # 3. Extract the ID using Regex from a message string
-        from_endpoint: "GET /users/{userId}/latest-order"
-        extract: "message"
-        regex: "Order ID: ([0-9]+)"
+        # This calls Level 2 first (which calls Level 1), then extracts the first order ID
+        from_endpoint: "GET /users/{userId}/orders"
+        extract: "data.items.0.id" # Supports list index '0'
 ```
 
 ---
+
+## 🛠️ Development Setup
+
+To run the CLI locally without reinstalling after every change:
+
+1. **Clone & CD**:
+```bash
+git clone ...
+cd pandoraspec
+```
+
+2. **Create & Activate Virtual Environment**:
+It's recommended to use a virtual environment to keep dependencies isolated.
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. **Editable Install**:
+```bash
+pip install -e .
+```
+This links the `pandoraspec` command directly to your source code. Any changes you make will be reflected immediately.
 
 ## 🛡️ What It Checks
 

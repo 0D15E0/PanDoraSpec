@@ -1,4 +1,3 @@
-import pytest
 from pandoraspec.seed import SeedManager
 from unittest.mock import MagicMock, patch
 
@@ -58,7 +57,7 @@ class TestSeedManager:
         
         val = manager._resolve_dynamic_value(config)
         assert val == 999
-        mock_request.assert_called_with("GET", "http://test.com/setup", headers={})
+        mock_request.assert_called_with("GET", "http://test.com/setup", headers={}, params={})
 
     def test_resolve_dynamic_value_cache(self):
         manager = SeedManager({})
