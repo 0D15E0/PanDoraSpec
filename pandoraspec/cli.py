@@ -1,20 +1,11 @@
 import typer
-import yaml
-import os
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from .core import AuditEngine
-from .reporting import generate_report
+from .orchestrator import run_dora_audit_logic
 
 app = typer.Typer(help="DORA Audit CLI - Verify Compliance of OpenAI Specs")
 console = Console()
-
-def load_config(config_path: str):
-    if os.path.exists(config_path):
-        with open(config_path, "r") as f:
-            return yaml.safe_load(f)
-    return {}
 
 def run_audit(
     target: str = typer.Argument(..., help="URL or path to OpenAPI schema"),
@@ -29,21 +20,21 @@ def run_audit(
     console.print(Panel(f"[bold blue]Starting DORA Audit for {vendor}[/bold blue]", border_style="blue"))
     console.print(f"🔎 Scanning [bold]{target}[/bold]...")
 
-    # Load Config
-    seed_data = {}
-    if config:
-        config_data = load_config(config)
-        seed_data = config_data.get("seed_data", {})
-        
-        if seed_data:
-            console.print(f"[green]Loaded {len(seed_data)} seed values from {config}[/green]")
-
     try:
-        # Pass seed_data to Engine
-        engine = AuditEngine(target=target, api_key=api_key, seed_data=seed_data, base_url=base_url)
+        # Delegate to Orchestrator
+        audit_result = run_dora_audit_logic(
+            target=target,
+            vendor=vendor,
+            api_key=api_key,
+            config_path=config,
+            base_url=base_url
+        )
         
-        results = engine.run_full_audit()
+        if audit_result.seed_count > 0:
+            console.print(f"[green]Loaded {audit_result.seed_count} seed values from config[/green]")
         
+        results = audit_result.results
+
         # Display Summary Table
         table = Table(title="Audit Summary")
         table.add_column("Module", style="cyan", no_wrap=True)
@@ -69,11 +60,8 @@ def run_audit(
         table.add_row("Module C: Security", sec_status, f"{sec_pass} / {sec_fail}")
 
         console.print(table)
-
-        # Generate Report
-        report_path = generate_report(vendor, results)
         
-        console.print(Panel(f"[bold green]Audit Complete![/bold green]\n📄 Report generated: [link={report_path}]{report_path}[/link]", border_style="green"))
+        console.print(Panel(f"[bold green]Audit Complete![/bold green]\n📄 Report generated: [link={audit_result.report_path}]{audit_result.report_path}[/link]", border_style="green"))
 
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {str(e)}")
