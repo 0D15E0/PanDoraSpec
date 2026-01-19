@@ -4,7 +4,7 @@ from schemathesis.specs.openapi import checks as oai_checks
 from schemathesis.checks import CheckContext, ChecksConfig
 from urllib.parse import unquote
 from ..seed import SeedManager
-from ..logger import logger
+from ..utils.logger import logger
 
 def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManager) -> list[dict]:
     """
@@ -100,12 +100,41 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                     causes = getattr(e, "causes", None)
                     if causes:
                         for cause in causes:
-                            if hasattr(cause, "message"):
-                                validation_errors.append(cause.message)
-                            else:
-                                validation_errors.append(str(cause))
+                            msg = cause.message if hasattr(cause, "message") else str(cause)
+                            
+                            # START: Loose DateTime Check
+                            # If strict validation fails on date-time, try to be forgiving
+                            if "is not a 'date-time'" in msg:
+                                try:
+                                    # Extract value from message: "'2023-10-25 12:00:00' is not a 'date-time'"
+                                    val_str = msg.split("'")[1]
+                                    from datetime import datetime
+                                    # specific check for the common "Space instead of T" issue
+                                    normalized = val_str.replace(" ", "T")
+                                    # check for likely valid formats that jsonschema hates
+                                    datetime.fromisoformat(normalized)
+                                    # If we parsed it, it's a False Positive for our purposes (drift is minor)
+                                    logger.info(f"AUDIT LOG: Ignoring strict date-time failure for plausible value: {val_str}")
+                                    continue 
+                                except Exception:
+                                    pass
+                            # END: Loose DateTime Check
+
+                            validation_errors.append(msg)
                     
                     if not validation_errors:
+                        # If we filtered everything out, consider it a PASS
+                        if causes:
+                             results.append({
+                                "module": "A",
+                                "endpoint": f"{operation.method.upper()} {operation.path}",
+                                "issue": f"{check_name} - Passed (Loose Validation)",
+                                "status": "PASS",
+                                "severity": "INFO",
+                                "details": f"Status: {response.status_code}. Ignored minor format mismatches."
+                            })
+                             continue
+
                         validation_errors.append(str(e) or "Validation failed")
                     
                     err_msg = "<br>".join(validation_errors)

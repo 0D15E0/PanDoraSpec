@@ -1,10 +1,10 @@
 from unittest.mock import MagicMock, patch
-from pandoraspec.checks.drift import run_drift_check
+from pandoraspec.modules.drift import run_drift_check
 
 class TestDriftCheck:
-    @patch("pandoraspec.checks.drift.checks.not_a_server_error")
-    @patch("pandoraspec.checks.drift.oai_checks.status_code_conformance")
-    @patch("pandoraspec.checks.drift.oai_checks.response_schema_conformance")
+    @patch("pandoraspec.modules.drift.checks.not_a_server_error")
+    @patch("pandoraspec.modules.drift.oai_checks.status_code_conformance")
+    @patch("pandoraspec.modules.drift.oai_checks.response_schema_conformance")
     def test_drift_all_pass(self, mock_schema_conf, mock_status_conf, mock_server_err):
         # Setup Mocks: Checks just run without raising AssertionError
         mock_schema = MagicMock()
@@ -24,9 +24,9 @@ class TestDriftCheck:
         assert len(results) == 3
         assert all(r["status"] == "PASS" for r in results)
 
-    @patch("pandoraspec.checks.drift.checks.not_a_server_error")
-    @patch("pandoraspec.checks.drift.oai_checks.status_code_conformance")
-    @patch("pandoraspec.checks.drift.oai_checks.response_schema_conformance")
+    @patch("pandoraspec.modules.drift.checks.not_a_server_error")
+    @patch("pandoraspec.modules.drift.oai_checks.status_code_conformance")
+    @patch("pandoraspec.modules.drift.oai_checks.response_schema_conformance")
     def test_drift_schema_fail(self, mock_schema_conf, mock_status_conf, mock_server_err):
         # Mock Schema Conformance Failure
         mock_schema_conf.side_effect = AssertionError("Schema mismatch")

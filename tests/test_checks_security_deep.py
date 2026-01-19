@@ -1,11 +1,14 @@
 import responses
-from pandoraspec.checks.security import run_security_hygiene
+from pandoraspec.modules.security import run_security_hygiene
+from pandoraspec.constants import HTTP_200_OK, HTTP_401_UNAUTHORIZED, HTTP_500_INTERNAL_SERVER_ERROR
 
 class MockOp:
     def __init__(self, path, method="GET"):
         self.path = path
         self.method = method
-    def ok(self): return self
+    
+    def ok(self):
+        return self
 
 class MockSchema:
     def get_all_operations(self):
@@ -16,16 +19,16 @@ def test_security_headers_missing_and_auth_fail():
     base_url = "https://api.test"
     
     # 1. Base URL Head check - returns 200 but NO headers
-    responses.add(responses.GET, base_url, json={}, headers={}, status=200)
+    responses.add(responses.GET, base_url, json={}, headers={}, status=HTTP_200_OK)
     
     # 2. Auth Check: Accessing /users returns 200 (FAIL)
-    responses.add(responses.GET, base_url + "/users", status=200)
+    responses.add(responses.GET, base_url + "/users", status=HTTP_200_OK)
     
     # Validation: /login returning 200 should NOT fail
-    responses.add(responses.GET, base_url + "/login", status=200)
+    responses.add(responses.GET, base_url + "/login", status=HTTP_200_OK)
 
     # 3. Injection Check: Accessing /users returns 200 (PASS)
-    responses.add(responses.GET, base_url + "/users", status=200)
+    responses.add(responses.GET, base_url + "/users", status=HTTP_200_OK)
 
     schema = MockSchema()
     results = run_security_hygiene(schema, base_url, api_key="secret")

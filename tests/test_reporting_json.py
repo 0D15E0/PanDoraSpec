@@ -1,6 +1,6 @@
 import json
 import os
-from pandoraspec.reporting import generate_json_report
+from pandoraspec.reporting.generator import generate_json_report
 
 def test_generate_json_report(tmp_path):
     # Mock data

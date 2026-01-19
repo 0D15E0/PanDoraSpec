@@ -2,11 +2,11 @@ import schemathesis
 from typing import Any
 import os
 from .seed import SeedManager
-from .logger import logger
-from .url_helpers import derive_base_url_from_target
-from .checks.drift import run_drift_check
-from .checks.resilience import run_resilience_tests
-from .checks.security import run_security_hygiene
+from .utils.logger import logger
+from .utils.url import derive_base_url_from_target
+from .modules.drift import run_drift_check
+from .modules.resilience import run_resilience_tests
+from .modules.security import run_security_hygiene
 
 class AuditEngine:
     def __init__(self, target: str, api_key: str = None, seed_data: dict[str, Any] = None, base_url: str = None):

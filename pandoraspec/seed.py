@@ -1,8 +1,8 @@
 import re
 import requests
 from typing import Any, Optional
-from .utils import extract_json_value, extract_regex_value
-from .logger import logger
+from .utils.parsing import extract_json_value, extract_regex_value
+from .utils.logger import logger
 
 class SeedManager:
     def __init__(self, seed_data: dict[str, Any], base_url: Optional[str] = None, api_key: Optional[str] = None):

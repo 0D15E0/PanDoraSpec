@@ -3,8 +3,8 @@ import os
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from .core import AuditEngine
-from .reporting import generate_report, generate_json_report
-from .logger import logger
+from .reporting.generator import generate_report, generate_json_report
+from .utils.logger import logger
 
 @dataclass
 class AuditRunResult:

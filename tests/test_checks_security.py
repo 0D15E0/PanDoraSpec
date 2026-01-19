@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-from pandoraspec.checks.security import run_security_hygiene
+from pandoraspec.modules.security import run_security_hygiene
 
 class TestSecurityCheck:
     def test_no_tls_fail(self):

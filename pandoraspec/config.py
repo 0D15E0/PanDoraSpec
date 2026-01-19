@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ValidationError
 from typing import Dict, Any
-from .logger import logger
+from .utils.logger import logger
 
 class PandoraConfig(BaseModel):
     seed_data: Dict[str, Any] = Field(
