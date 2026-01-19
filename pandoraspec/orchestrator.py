@@ -12,15 +12,18 @@ class AuditRunResult:
     report_path: str
     seed_count: int
 
-def load_config(config_path: str) -> Dict[str, Any]:
+from .config import validate_config, PandoraConfig
+
+def load_config(config_path: str) -> PandoraConfig:
     if config_path and os.path.exists(config_path):
         try:
             with open(config_path, "r") as f:
-                return yaml.safe_load(f) or {}
+                raw_data = yaml.safe_load(f) or {}
+                return validate_config(raw_data)
         except Exception as e:
-            logger.error(f"Failed to load config from {config_path}: {e}")
-            return {}
-    return {}
+            logger.error(f"Failed to load or validate config from {config_path}: {e}")
+            return PandoraConfig()
+    return PandoraConfig()
 
 def run_dora_audit_logic(
     target: str,
@@ -37,7 +40,7 @@ def run_dora_audit_logic(
     seed_data = {}
     if config_path:
         config_data = load_config(config_path)
-        seed_data = config_data.get("seed_data", {})
+        seed_data = config_data.seed_data
     
     # 2. Initialize Engine
     engine = AuditEngine(

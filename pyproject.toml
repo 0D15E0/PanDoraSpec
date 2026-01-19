@@ -15,7 +15,8 @@ dependencies = [
     "typer[all]",
     "rich",
     "weasyprint",
-    "requests"
+    "requests",
+    "pydantic"
 ]
 
 [project.optional-dependencies]
