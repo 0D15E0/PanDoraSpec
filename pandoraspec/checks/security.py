@@ -1,13 +1,13 @@
-from typing import List, Dict
 from ..constants import SENSITIVE_PATH_KEYWORDS
+from ..logger import logger
 
-def run_security_hygiene(schema, base_url: str) -> List[Dict]:
+def run_security_hygiene(schema, base_url: str) -> list[dict]:
     """
     Module C: Security Hygiene Check
     Checks for TLS and Auth leakage in URL.
     """
     results = []
-    print(f"AUDIT LOG: Checking Security Hygiene for base URL: {base_url}")
+    logger.info(f"AUDIT LOG: Checking Security Hygiene for base URL: {base_url}")
     if base_url and not base_url.startswith("https"):
         results.append({
             "module": "C",

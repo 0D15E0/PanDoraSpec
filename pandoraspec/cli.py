@@ -29,7 +29,7 @@ def run_audit(
     console.print(Panel(f"[bold blue]Starting DORA Audit for {vendor}[/bold blue]", border_style="blue"))
     console.print(f"🔎 Scanning [bold]{target}[/bold]...")
 
-    # 1. Load Config
+    # Load Config
     seed_data = {}
     if config:
         config_data = load_config(config)
@@ -39,7 +39,7 @@ def run_audit(
             console.print(f"[green]Loaded {len(seed_data)} seed values from {config}[/green]")
 
     try:
-        # 2. Pass seed_data to Engine
+        # Pass seed_data to Engine
         engine = AuditEngine(target=target, api_key=api_key, seed_data=seed_data, base_url=base_url)
         
         results = engine.run_full_audit()

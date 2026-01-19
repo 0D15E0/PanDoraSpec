@@ -1,12 +1,12 @@
 import html
-from typing import List, Dict
 from schemathesis import checks
 from schemathesis.specs.openapi import checks as oai_checks
 from schemathesis.checks import CheckContext, ChecksConfig
 from urllib.parse import unquote
 from ..seed import SeedManager
+from ..logger import logger
 
-def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManager) -> List[Dict]:
+def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManager) -> list[dict]:
     """
     Module A: The 'Docs vs. Code' Drift Check (The Integrity Test)
     Uses schemathesis to verify if the API implementation matches the spec.
@@ -60,7 +60,7 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                         
                         formatted_path = formatted_path.replace(f"{{{key}}}", f"{{{key}:{display_value}}}")
             
-            print(f"AUDIT LOG: Testing endpoint {operation.method.upper()} {formatted_path}")
+            logger.info(f"AUDIT LOG: Testing endpoint {operation.method.upper()} {formatted_path}")
 
             headers = {}
             if api_key:
@@ -69,10 +69,10 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
 
             # Call the API
             target_url = f"{base_url.rstrip('/')}/{formatted_path.lstrip('/')}"
-            print(f"AUDIT LOG: Calling {operation.method.upper()} {target_url}")
+            logger.debug(f"AUDIT LOG: Calling {operation.method.upper()} {target_url}")
             
             response = case.call(base_url=base_url, headers=headers)
-            print(f"AUDIT LOG: Response Status Code: {response.status_code}")
+            logger.debug(f"AUDIT LOG: Response Status Code: {response.status_code}")
             
             # We manually call the check function to ensure arguments are passed correctly.
             for check_name in check_names:
@@ -123,7 +123,7 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                         
                     full_details = f"<strong>Error:</strong> {safe_err}<br><br><strong>Context:</strong><br>{context_msg}"
 
-                    print(f"AUDIT LOG: Validation {check_name} failed: {err_msg}")
+                    logger.warning(f"AUDIT LOG: Validation {check_name} failed: {err_msg}")
                     results.append({
                         "module": "A",
                         "endpoint": f"{operation.method.upper()} {operation.path}",
@@ -134,7 +134,7 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                     })
                 except Exception as e:
                     # This catches unexpected coding errors
-                    print(f"AUDIT LOG: Error executing check {check_name}: {str(e)}")
+                    logger.error(f"AUDIT LOG: Error executing check {check_name}: {str(e)}")
                     results.append({
                         "module": "A",
                         "endpoint": f"{operation.method.upper()} {operation.path}",
@@ -145,7 +145,7 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                     })
                     
         except Exception as e:
-            print(f"AUDIT LOG: Critical Error during endpoint test: {str(e)}")
+            logger.critical(f"AUDIT LOG: Critical Error during endpoint test: {str(e)}")
             continue
             
     return results

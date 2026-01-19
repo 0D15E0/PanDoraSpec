@@ -1,16 +1,18 @@
 import re
 import requests
-from typing import Dict, Any, Optional
+from typing import Any, Optional
+from .utils import extract_json_value, extract_regex_value
+from .logger import logger
 
 class SeedManager:
-    def __init__(self, seed_data: Dict[str, Any], base_url: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(self, seed_data: dict[str, Any], base_url: Optional[str] = None, api_key: Optional[str] = None):
         self.seed_data = seed_data
         self.base_url = base_url
         self.api_key = api_key
         self.dynamic_cache = {}
         self._resolving_stack = set() # To detect recursion cycles
 
-    def _get_seed_config(self, method: str, path: str) -> Dict[str, Any]:
+    def _get_seed_config(self, method: str, path: str) -> dict[str, Any]:
         """Merges seed data for a specific endpoint (General < Verb < Endpoint)"""
         if not self.seed_data:
             return {}
@@ -44,7 +46,7 @@ class SeedManager:
 
         # Cycle detection
         if endpoint_def in self._resolving_stack:
-            print(f"WARNING: Circular dependency detected for {endpoint_def}. Breaking cycle.")
+            logger.warning(f"Circular dependency detected for {endpoint_def}. Breaking cycle.")
             return None
         
         self._resolving_stack.add(endpoint_def)
@@ -53,11 +55,11 @@ class SeedManager:
             try:
                 method, path = endpoint_def.split(" ", 1)
             except ValueError:
-                print(f"WARNING: Invalid endpoint definition '{endpoint_def}'. Expected 'METHOD /path'")
+                logger.warning(f"Invalid endpoint definition '{endpoint_def}'. Expected 'METHOD /path'")
                 return None
 
             if not self.base_url:
-                print("WARNING: Cannot resolve dynamic seed, base_url is not set.")
+                logger.warning("Cannot resolve dynamic seed, base_url is not set.")
                 return None
 
             # Recursive Step: Resolve dependencies BEFORE making the request
@@ -82,7 +84,7 @@ class SeedManager:
                     return str(resolved_upstream_params[param_name])
                 if param_name in general_seeds:
                      return str(general_seeds[param_name])
-                print(f"WARNING: Missing seed value for {{{param_name}}} in dynamic endpoint {endpoint_def}")
+                logger.warning(f"Missing seed value for {{{param_name}}} in dynamic endpoint {endpoint_def}")
                 return match.group(0)
 
             url_path = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, path)
@@ -101,11 +103,11 @@ class SeedManager:
                  if f"{{{k}}}" not in path:
                      query_params[k] = v
 
-            print(f"AUDIT LOG: Resolving dynamic seed from {method} {url_path}")
+            logger.debug(f"AUDIT LOG: Resolving dynamic seed from {method} {url_path}")
             response = requests.request(method, url, headers=headers, params=query_params)
             
             if response.status_code >= 400:
-                print(f"WARNING: Dynamic seed request failed with {response.status_code}")
+                logger.warning(f"Dynamic seed request failed with {response.status_code}")
                 return None
 
             result = None
@@ -116,37 +118,21 @@ class SeedManager:
             if extract_key:
                 try:
                     json_data = response.json()
-                    keys = extract_key.split('.')
-                    val = json_data
-                    for k in keys:
-                        if isinstance(val, dict):
-                            val = val.get(k)
-                        elif isinstance(val, list) and k.isdigit():
-                            try:
-                                val = val[int(k)]
-                            except IndexError:
-                                val = None
-                                break
-                        else:
-                            val = None
-                            break
-                    result = val
+                    result = extract_json_value(json_data, extract_key)
                 except Exception:
-                    print("WARNING: Failed to parse JSON or extract key")
+                    logger.warning("Failed to parse JSON for seed extraction")
             else:
                  result = response.text
 
             # Regex Extraction
             if regex_pattern and result is not None:
-                match = re.search(regex_pattern, str(result))
-                if match:
-                    result = match.group(1) if match.groups() else match.group(0)
+                result = extract_regex_value(str(result), regex_pattern)
             
             self.dynamic_cache[endpoint_def] = result
             return result
 
         except Exception as e:
-            print(f"ERROR: Failed to resolve dynamic seed: {e}")
+            logger.error(f"Failed to resolve dynamic seed: {e}")
             return None
         finally:
             self._resolving_stack.discard(endpoint_def)

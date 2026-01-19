@@ -1,30 +1,32 @@
 import schemathesis
-from typing import Dict, Any
+from typing import Any
 import os
 from .seed import SeedManager
+from .logger import logger
+from .url_helpers import derive_base_url_from_target
 from .checks.drift import run_drift_check
 from .checks.resilience import run_resilience_tests
 from .checks.security import run_security_hygiene
 
 class AuditEngine:
-    def __init__(self, target: str, api_key: str = None, seed_data: Dict[str, Any] = None, base_url: str = None):
+    def __init__(self, target: str, api_key: str = None, seed_data: dict[str, Any] = None, base_url: str = None):
         self.target = target
         self.api_key = api_key
         self.seed_data = seed_data or {}
         self.base_url = base_url
-        self.dynamic_cache = {} # Cache for dynamic seed values
+        self.dynamic_cache = {}
         self.schema = None
 
         try:
             if os.path.exists(target) and os.path.isfile(target):
-                 print(f"DEBUG: Loading schema from local file: {target}")
+                 logger.debug(f"Loading schema from local file: {target}")
                  self.schema = schemathesis.openapi.from_path(target)
             else:
                  self.schema = schemathesis.openapi.from_url(target)
             
             # If base_url was manually provided, we skip dynamic resolution
             if self.base_url:
-                print(f"DEBUG: Using manual override base_url: {self.base_url}")
+                logger.debug(f"Using manual override base_url: {self.base_url}")
                 resolved_url = self.base_url
             else:
                 # Priority 1: Extract from the 'servers' field in the spec
@@ -35,29 +37,21 @@ class AuditEngine:
                         spec_server_url = servers[0].get("url")
                         if spec_server_url:
                             resolved_url = spec_server_url
-                            print(f"DEBUG: Found server URL in specification: {resolved_url}")
+                            logger.debug(f"Found server URL in specification: {resolved_url}")
             
             # Priority 2: Use whatever schemathesis resolved automatically (fallback)
             if not resolved_url:
                 resolved_url = getattr(self.schema, "base_url", None)
-                print(f"DEBUG: Falling back to Schemathesis resolved base_url: {resolved_url}")
+                logger.debug(f"Falling back to Schemathesis resolved base_url: {resolved_url}")
 
-            if not resolved_url and self.target and not os.path.exists(self.target):
-                # Fallback: Derive from target URL (e.g., remove swagger.json)
-                try:
-                    from urllib.parse import urlparse, urlunparse
-                    parsed = urlparse(self.target)
-                    path_parts = parsed.path.split('/')
-                    # Simple heuristic: remove the last segment (e.g. swagger.json) to get base
-                    if '.' in path_parts[-1]: 
-                        path_parts.pop()
-                    new_path = '/'.join(path_parts)
-                    resolved_url = urlunparse(parsed._replace(path=new_path))
-                    print(f"DEBUG: Derived base_url from schema_url: {resolved_url}")
-                except Exception as e:
-                    print(f"DEBUG: Failed to derive base_url from schema_url: {e}")
+            if not resolved_url:
+                # Fallback: Derive from target URL
+                derived = derive_base_url_from_target(self.target)
+                if derived:
+                   resolved_url = derived
+                   logger.debug(f"Derived base_url from schema_url: {resolved_url}")
 
-            print(f"DEBUG: Final resolved base_url for engine: {resolved_url}")
+            logger.debug(f"Final resolved base_url for engine: {resolved_url}")
             self.base_url = resolved_url
             if resolved_url:
                 try:
@@ -66,7 +60,7 @@ class AuditEngine:
                         pass
         except Exception as e:
              # Handle invalid URL or schema loading error gracefully
-             print(f"Error loading schema: {e}")
+             logger.error(f"Error loading schema: {e}")
              if target and (target.startswith("http") or os.path.exists(target)):
                 pass # Allow to continue if it's just a warning, but schemathesis might fail later
              else:
@@ -75,7 +69,7 @@ class AuditEngine:
         # Initialize Seed Manager
         self.seed_manager = SeedManager(self.seed_data, self.base_url, self.api_key)
 
-    def run_full_audit(self) -> Dict:
+    def run_full_audit(self) -> dict:
         return {
             "drift_check": run_drift_check(self.schema, self.base_url, self.api_key, self.seed_manager),
             "resilience": run_resilience_tests(self.schema, self.base_url, self.api_key, self.seed_manager),

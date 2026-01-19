@@ -55,4 +55,5 @@ class TestResilienceCheck:
         results = run_resilience_tests(mock_schema, "http://api.test", None, seed_manager)
         
         statuses = {r["issue"]: r["status"] for r in results}
+        assert statuses["No Rate Limiting Enforced"] == "FAIL"
         assert statuses["Poor Resilience: 500 Error during flood"] == "FAIL"

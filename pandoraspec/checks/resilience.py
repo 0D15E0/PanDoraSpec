@@ -1,8 +1,8 @@
-from typing import List, Dict
 from ..seed import SeedManager
 from ..constants import FLOOD_REQUEST_COUNT
+from ..logger import logger
 
-def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: SeedManager) -> List[Dict]:
+def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: SeedManager) -> list[dict]:
     """
     Module B: The 'Resilience' Stress Test (Art. 24 & 25)
     Checks for Rate Limiting and Timeout gracefully handling.
@@ -12,7 +12,7 @@ def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: Seed
     if not ops:
         return []
     
-    print("AUDIT LOG: Starting Module B: Resilience Stress Test (flooding requests)...")
+    logger.info("AUDIT LOG: Starting Module B: Resilience Stress Test (flooding requests)...")
     
     operation = ops[0].ok() if hasattr(ops[0], "ok") else ops[0]
     
@@ -40,39 +40,47 @@ def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: Seed
     
     has_429 = any(r.status_code == 429 for r in responses)
     has_500 = any(r.status_code == 500 for r in responses)
-    
-    if not has_429 and has_500:
-        results.append({
+
+    # Helper to create consistent result objects
+    def _create_result(issue, status, details, severity):
+        return {
             "module": "B",
-            "issue": "Poor Resilience: 500 Error during flood",
-            "status": "FAIL",
-            "details": "The API returned 500 Internal Server Error instead of 429 Too Many Requests when flooded.",
-            "severity": "CRITICAL"
-        })
-    elif not has_429:
-            results.append({
-            "module": "B",
-            "issue": "No Rate Limiting Enforced",
-            "status": "FAIL",
-            "details": "The API did not return 429 Too Many Requests during high volume testing.",
-            "severity": "MEDIUM"
-        })
+            "issue": issue,
+            "status": status,
+            "details": details,
+            "severity": severity
+        }
+
+    # 1. Rate Limiting Check
+    if has_429:
+         results.append(_create_result(
+            "Rate Limiting Functional",
+            "PASS",
+            "The API correctly returned 429 Too Many Requests when flooded.",
+            "INFO"
+        ))
     else:
-        results.append({
-            "module": "B",
-            "issue": "Rate Limiting Functional",
-            "status": "PASS",
-            "details": "The API correctly returned 429 Too Many Requests when flooded.",
-            "severity": "INFO"
-        })
-        
-    if not has_500:
-            results.append({
-            "module": "B",
-            "issue": "Stress Handling",
-            "status": "PASS",
-            "details": "No 500 Internal Server Errors were observed during stress testing.",
-            "severity": "INFO"
-        })
+        results.append(_create_result(
+            "No Rate Limiting Enforced",
+            "FAIL",
+            "The API did not return 429 Too Many Requests during high volume testing.",
+            "MEDIUM"
+        ))
+
+    # 2. Stress Handling Check (500 Errors)
+    if has_500:
+        results.append(_create_result(
+            "Poor Resilience: 500 Error during flood",
+            "FAIL",
+            "The API returned 500 Internal Server Error instead of 429 Too Many Requests when flooded.",
+            "CRITICAL"
+        ))
+    else:
+        results.append(_create_result(
+            "Stress Handling",
+            "PASS",
+            "No 500 Internal Server Errors were observed during stress testing.",
+            "INFO"
+        ))
 
     return results
