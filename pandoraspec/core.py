@@ -73,5 +73,5 @@ class AuditEngine:
         return {
             "drift_check": run_drift_check(self.schema, self.base_url, self.api_key, self.seed_manager),
             "resilience": run_resilience_tests(self.schema, self.base_url, self.api_key, self.seed_manager),
-            "security": run_security_hygiene(self.schema, self.base_url)
+            "security": run_security_hygiene(self.schema, self.base_url, self.api_key)
         }
