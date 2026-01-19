@@ -25,6 +25,17 @@ Run the audit directly from your terminal.
 pandoraspec https://petstore.swagger.io/v2/swagger.json
 ```
 
+### JSON Output (CI/CD)
+To generate a machine-readable JSON report for automated pipelines:
+```bash
+pandoraspec https://api.example.com/spec.json --format json --output report.json
+```
+This outputs a file like `report.json` containing the full audit results and compliance score.
+
+**Included CI/CD Resources:**
+- [`scripts/check_compliance.py`](scripts/check_compliance.py): Script to parse the JSON report and exit with error if non-compliant.
+- [`examples/github_pipeline.yml`](examples/github_pipeline.yml): Example GitHub Actions workflow.
+
 ### With Options
 ```bash
 pandoraspec https://api.example.com/spec.json --vendor "Stripe" --key "sk_live_..."
@@ -159,6 +170,10 @@ Checks for common security headers and configurations.
 
 ### Module D: The Report
 Generates a PDF report: **"DORA ICT Third-Party Technical Risk Assessment"**.
+Alternatively, use `--format json` to get a structured JSON object for:
+- CI/CD Gates (e.g., fail build if `is_compliant` is false).
+- Custom Dashboards.
+- Archival purposes.
 
 ---
 

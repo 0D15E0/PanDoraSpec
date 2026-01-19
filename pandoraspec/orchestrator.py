@@ -3,7 +3,7 @@ import os
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from .core import AuditEngine
-from .reporting import generate_report
+from .reporting import generate_report, generate_json_report
 from .logger import logger
 
 @dataclass
@@ -30,7 +30,9 @@ def run_dora_audit_logic(
     vendor: str,
     api_key: Optional[str] = None,
     config_path: Optional[str] = None,
-    base_url: Optional[str] = None
+    base_url: Optional[str] = None,
+    output_format: str = "pdf",
+    output_path: Optional[str] = None
 ) -> AuditRunResult:
     """
     Orchestrates the DORA audit: loads config, runs engine, generates report.
@@ -55,7 +57,10 @@ def run_dora_audit_logic(
     results = engine.run_full_audit()
     
     # 4. Generate Report
-    report_path = generate_report(vendor, results)
+    if output_format.lower() == "json":
+        report_path = generate_json_report(vendor, results, output_path=output_path)
+    else:
+        report_path = generate_report(vendor, results, output_path=output_path)
     
     return AuditRunResult(
         results=results,

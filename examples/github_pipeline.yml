@@ -1,0 +1,43 @@
+name: DORA Compliance Audit
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install PanDoraSpec
+      run: |
+        pip install pandoraspec
+        # Or install from source: pip install .
+
+    - name: Run DORA Audit
+      run: |
+        # Run audit and output to a fixed JSON path
+        pandoraspec https://api.staging.example.com/openapi.json \
+          --format json \
+          --output report.json \
+          --key ${{ secrets.API_KEY }}
+
+    - name: Fail Build if Non-Compliant
+      run: |
+        # Use simple python script to parse the report and exit 1 if non-compliant
+        python scripts/check_compliance.py report.json
+
+    - name: Upload Report Artifact
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: dora-report
+        path: report.json

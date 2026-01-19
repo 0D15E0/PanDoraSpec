@@ -12,7 +12,9 @@ def run_audit(
     api_key: str = typer.Option(None, "--key", "-k", help="API Key for authenticated endpoints"),
     vendor: str = typer.Option("Vendor", "--vendor", "-v", help="Vendor name for the report"),
     config: str = typer.Option(None, "--config", "-c", help="Path to .yaml configuration file"),
-    base_url: str = typer.Option(None, "--base-url", "-b", help="Override API Base URL")
+    base_url: str = typer.Option(None, "--base-url", "-b", help="Override API Base URL"),
+    output_format: str = typer.Option("pdf", "--format", "-f", help="Report format (pdf or json)"),
+    output_path: str = typer.Option(None, "--output", "-o", help="Custom path for the output report file")
 ):
     """
     Run a DORA audit against an OpenAPI schema.
@@ -27,7 +29,9 @@ def run_audit(
             vendor=vendor,
             api_key=api_key,
             config_path=config,
-            base_url=base_url
+            base_url=base_url,
+            output_format=output_format,
+            output_path=output_path
         )
         
         if audit_result.seed_count > 0:
