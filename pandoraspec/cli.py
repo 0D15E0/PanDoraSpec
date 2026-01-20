@@ -13,7 +13,7 @@ def run_audit(
     vendor: str = typer.Option("Vendor", "--vendor", "-v", help="Vendor name for the report"),
     config: str = typer.Option(None, "--config", "-c", help="Path to .yaml configuration file"),
     base_url: str = typer.Option(None, "--base-url", "-b", help="Override API Base URL"),
-    output_format: str = typer.Option("pdf", "--format", "-f", help="Report format (pdf or json)"),
+    output_format: str = typer.Option("pdf", "--format", "-f", help="Report format (pdf, json, junit)"),
     output_path: str = typer.Option(None, "--output", "-o", help="Custom path for the output report file")
 ):
     """
@@ -66,6 +66,11 @@ def run_audit(
         console.print(table)
         
         console.print(Panel(f"[bold green]Audit Complete![/bold green]\n📄 Report generated: [link={audit_result.report_path}]{audit_result.report_path}[/link]", border_style="green"))
+
+        # Exit with error code if there are any failures
+        if drift_fail > 0 or res_fail > 0 or sec_fail > 0:
+            console.print(f"\n[bold red]FAILURE:[/bold red] Use the report to fix the issues.")
+            raise typer.Exit(code=1)
 
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {str(e)}")

@@ -56,9 +56,13 @@ def run_dora_audit_logic(
     logger.info(f"Starting audit for {target}")
     results = engine.run_full_audit()
     
+    from .reporting.junit import generate_junit_xml
+
     # 4. Generate Report
     if output_format.lower() == "json":
         report_path = generate_json_report(vendor, results, output_path=output_path)
+    elif output_format.lower() == "junit":
+        report_path = generate_junit_xml(vendor, results, output_path=output_path)
     else:
         report_path = generate_report(vendor, results, output_path=output_path)
     

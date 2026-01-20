@@ -15,6 +15,69 @@ pip install pandoraspec
 ### System Requirements
 The PDF report generation requires `weasyprint`, which depends on **Pango**.
 
+---
+
+## 🏭 Production Ready (CI/CD)
+
+PanDoraSpec is designed for automated pipelines. It returns **Exit Code 1** if any issues are found, blocking deployments if needed.
+
+### 🐳 Docker
+Run without installing Python:
+```bash
+docker run -v $(pwd):/data pandoraspec \
+  https://api.example.com/spec.json \
+  --output /data/report.pdf
+```
+
+### 🐙 GitHub Actions
+Add this step to your`.github/workflows/pipeline.yml`:
+
+```yaml
+- name: DORA Compliance Audit
+  uses: pandoraspec/pandoraspec@v1
+  with:
+    target: 'https://api.example.com/spec.json'
+    vendor: 'MyCompany'
+    format: 'junit'
+    output: 'dora-results.xml'
+```
+
+### 📊 JUnit Reporting
+Use `--format junit` to generate standard XML test results that CI systems (Jenkins, GitLab, Azure DevOps) can parse to display test pass/fail trends.
+
+---
+
+## 📦 Publishing
+
+### Automated (Recommended)
+This repository uses a **Unified Release Pipeline**.
+
+1. **Update Version**: Open `pyproject.toml` and bump the version (e.g., `version = "0.2.8"`). Commit and push.
+2. **Draft Release**:
+   - Go to the **Releases** tab in GitHub.
+   - Click **Draft a new release**.
+   - Create a tag MATCHING the version (e.g., `v0.2.8`).
+   - Click **Publish release**.
+
+The workflow will:
+1. **Verify** that `pyproject.toml` matches the tag (fails if they differ).
+2. **Publish to Docker**: `ghcr.io/.../pandoraspec:v0.2.8`.
+3. **Publish to PyPI**: Uploads the package to PyPI (requires Trusted Publishing setup).
+
+### Manual
+To publish manually to GitHub Container Registry:
+
+```bash
+# Login
+echo $CR_PAT | docker login ghcr.io -u USERNAME --password-stdin
+
+# Build
+docker build -t ghcr.io/OWNER/pandoraspec:latest .
+
+# Push
+docker push ghcr.io/OWNER/pandoraspec:latest
+```
+
   
 ## 🚀 Usage
 

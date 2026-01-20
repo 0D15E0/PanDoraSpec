@@ -1,0 +1,44 @@
+name: 'PanDoraSpec DORA Audit'
+description: 'Runs PanDoraSpec to audit your OpenAPI specification for DORA compliance'
+author: 'Ulises Merlan'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  target:
+    description: 'URL or path to OpenAPI schema'
+    required: true
+  vendor:
+    description: 'Vendor name'
+    required: false
+    default: 'Vendor'
+  api-key:
+    description: 'API Key for authenticated endpoints'
+    required: false
+  config:
+    description: 'Path to configuration file'
+    required: false
+  base-url:
+    description: 'Override base URL'
+    required: false
+  format:
+    description: 'Output format (pdf or json)'
+    required: false
+    default: 'pdf'
+  output:
+    description: 'Custom output path'
+    required: false
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  entrypoint: '/app/entrypoint.sh'
+  args:
+    - ${{ inputs.target }}
+    - ${{ inputs.vendor }}
+    - ${{ inputs.api-key }}
+    - ${{ inputs.config }}
+    - ${{ inputs.base-url }}
+    - ${{ inputs.format }}
+    - ${{ inputs.output }}
