@@ -71,8 +71,43 @@ def run_audit(
         console.print(f"[bold red]Error:[/bold red] {str(e)}")
         raise typer.Exit(code=1)
 
+@app.command()
+def init(
+    output: str = typer.Option("pandoraspec.yaml", "--output", "-o", help="Output path for the config file")
+):
+    """
+    Initialize a new configuration file.
+    """
+    from .init import run_init_wizard
+    run_init_wizard(output_file=output)
+
+@app.command()
+def validate(
+    config: str = typer.Option(..., "--config", "-c", help="Path to .yaml configuration file")
+):
+    """
+    Validate a configuration file.
+    """
+    from .validator import validate_config, ValidationError
+    try:
+        validate_config(config)
+    except ValidationError as e:
+        console.print(f"[bold red]Validation Failed:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+import sys
+
 def main():
-    typer.run(run_audit)
+    # Simple dispatch logic to support both legacy "pandoraspec <url>" and new "pandoraspec init"
+    # If the first argument is a known command, invoke the Typer app.
+    # Otherwise, assume it's the default "audit" behavior.
+    
+    known_commands = ["init", "validate"]
+    
+    if len(sys.argv) > 1 and sys.argv[1] in known_commands:
+        app()
+    else:
+        typer.run(run_audit)
 
 if __name__ == "__main__":
     main()

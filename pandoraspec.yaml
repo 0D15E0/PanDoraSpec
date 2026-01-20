@@ -1,0 +1,13 @@
+target: https://petstore.swagger.io/v2/swagger.json
+vendor: MyVendor
+seed_data:
+  general:
+    limit: 10
+    offset: 0
+  verbs:
+    POST:
+      dry_run: true
+  endpoints:
+    /example/path:
+      GET:
+        param_name: example_value

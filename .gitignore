@@ -24,6 +24,7 @@ wheels/
 .installed.cfg
 *.egg
 .hypothesis/
+.pytest_cache/
 
 # Virtual Environment
 venv/

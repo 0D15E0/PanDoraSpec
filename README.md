@@ -33,7 +33,7 @@ pandoraspec https://api.example.com/spec.json --format json --output report.json
 This outputs a file like `report.json` containing the full audit results and compliance score.
 
 **Included CI/CD Resources:**
-- [`scripts/check_compliance.py`](scripts/check_compliance.py): Script to parse the JSON report and exit with error if non-compliant.
+- [`examples/check_compliance.py`](examples/check_compliance.py): Script to parse the JSON report and exit with error if non-compliant.
 - [`examples/github_pipeline.yml`](examples/github_pipeline.yml): Example GitHub Actions workflow.
 
 ### With Options
@@ -129,7 +129,18 @@ endpoints:
         from_endpoint: "GET /users/{userId}/orders"
         extract: "data.items.0.id" # Supports list index '0'
 ```
+### 🧙 Configuration Wizard
+Get started quickly by generating a configuration file interactively:
+```bash
+pandoraspec init
+```
+This will guide you through creating a `pandoraspec.yaml` file with your target URL, vendor name, and seed data templates.
 
+### ✅ Validate Configuration
+Ensure your configuration file is valid before running an audit:
+```bash
+pandoraspec validate --config pandoraspec.yaml
+```
 ---
 
 ## 🛠️ Development Setup
