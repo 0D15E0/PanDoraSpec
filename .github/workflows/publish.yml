@@ -21,8 +21,11 @@ jobs:
           # Assuming version = "x.y.z"
           FILE_VERSION=$(grep 'version = ' pyproject.toml | head -n 1 | cut -d '"' -f 2)
           
-          # Extract release tag (vX.Y.Z) -> X.Y.Z
-          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          # Extract release tag (vX.Y.Z or X.Y.Z) -> X.Y.Z
+          # 1. Strip refs/tags/
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          # 2. Strip 'v' prefix if present
+          TAG_VERSION=${TAG_NAME#v}
           
           echo "File Version: $FILE_VERSION"
           echo "Tag Version:  $TAG_VERSION"
