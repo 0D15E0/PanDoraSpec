@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pandoraspec"
-version = "0.2.10"
+version = "0.2.11"
 description = "DORA Compliance Auditor for OpenAPI Specs"
 readme = "README.md"
 authors = [{ name = "Ulises Merlan", email = "ulimerlan@gmail.com" }]
