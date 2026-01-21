@@ -14,7 +14,8 @@ def run_audit(
     config: str = typer.Option(None, "--config", "-c", help="Path to .yaml configuration file"),
     base_url: str = typer.Option(None, "--base-url", "-b", help="Override API Base URL"),
     output_format: str = typer.Option("pdf", "--format", "-f", help="Report format (pdf, json, junit)"),
-    output_path: str = typer.Option(None, "--output", "-o", help="Custom path for the output report file")
+    output_path: str = typer.Option(None, "--output", "-o", help="Custom path for the output report file"),
+    ai_model: str = typer.Option(None, "--model", "-m", help="OpenAI Model (e.g. gpt-4o, gpt-3.5-turbo)")
 ):
     """
     Run a DORA audit against an OpenAPI schema.
@@ -31,7 +32,8 @@ def run_audit(
             config_path=config,
             base_url=base_url,
             output_format=output_format,
-            output_path=output_path
+            output_path=output_path,
+            ai_model=ai_model
         )
         
         if audit_result.seed_count > 0:
@@ -72,6 +74,8 @@ def run_audit(
             console.print(f"\n[bold red]FAILURE:[/bold red] Use the report to fix the issues.")
             raise typer.Exit(code=1)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {str(e)}")
         raise typer.Exit(code=1)

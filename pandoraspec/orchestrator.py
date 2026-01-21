@@ -32,7 +32,8 @@ def run_dora_audit_logic(
     config_path: Optional[str] = None,
     base_url: Optional[str] = None,
     output_format: str = "pdf",
-    output_path: Optional[str] = None
+    output_path: Optional[str] = None,
+    ai_model: Optional[str] = None
 ) -> AuditRunResult:
     """
     Orchestrates the DORA audit: loads config, runs engine, generates report.
@@ -53,6 +54,10 @@ def run_dora_audit_logic(
 
     final_vendor = vendor or config_data.vendor or "Vendor"
     final_api_key = api_key or config_data.api_key
+    
+    # Override AI Model if provided via CLI
+    if ai_model:
+        config_data.ai_model = ai_model
 
     # 3. Initialize Engine
     engine = AuditEngine(
@@ -60,7 +65,8 @@ def run_dora_audit_logic(
         api_key=final_api_key, 
         seed_data=seed_data, 
         base_url=base_url,
-        allowed_domains=getattr(config_data, "dlp_allowed_domains", [])
+        allowed_domains=getattr(config_data, "dlp_allowed_domains", []),
+        config=config_data # Pass full config for AI module
     )
     
     # 4. Run Audit

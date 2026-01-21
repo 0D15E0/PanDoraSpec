@@ -7,14 +7,17 @@ from .utils.url import derive_base_url_from_target
 from .modules.drift import run_drift_check
 from .modules.resilience import run_resilience_tests
 from .modules.security import run_security_hygiene
+from .modules.ai_judge import run_ai_assessment
+from .config import PandoraConfig
 
 class AuditEngine:
-    def __init__(self, target: str, api_key: str = None, seed_data: dict[str, Any] = None, base_url: str = None, allowed_domains: list[str] = None):
+    def __init__(self, target: str, api_key: str = None, seed_data: dict[str, Any] = None, base_url: str = None, allowed_domains: list[str] = None, config: PandoraConfig = None):
         self.target = target
         self.api_key = api_key
         self.seed_data = seed_data or {}
         self.base_url = base_url
         self.allowed_domains = allowed_domains or []
+        self.config = config or PandoraConfig() # Store full config
         self.dynamic_cache = {}
         self.schema = None
 
@@ -71,8 +74,14 @@ class AuditEngine:
         self.seed_manager = SeedManager(self.seed_data, self.base_url, self.api_key)
 
     def run_full_audit(self) -> dict:
-        return {
+        results = {
             "drift_check": run_drift_check(self.schema, self.base_url, self.api_key, self.seed_manager),
             "resilience": run_resilience_tests(self.schema, self.base_url, self.api_key, self.seed_manager),
             "security": run_security_hygiene(self.schema, self.base_url, self.api_key, allowed_domains=self.allowed_domains)
         }
+        
+        # 6. Run AI Assessment
+        ai_results = run_ai_assessment(self.schema, results, self.config)
+        results["ai_auditor"] = ai_results
+        
+        return results

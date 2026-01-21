@@ -16,7 +16,9 @@ dependencies = [
     "rich",
     "weasyprint",
     "requests",
-    "pydantic"
+    "pydantic",
+    "pyyaml",
+    "openai"
 ]
 
 [project.optional-dependencies]

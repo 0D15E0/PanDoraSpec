@@ -42,13 +42,6 @@ If your OpenAPI spec uses variables (e.g. `https://{env}.api.com`) or you want t
 pandoraspec https://api.example.com/spec.json --base-url https://staging.api.example.com
 ```
 
-### JSON Output (CI/CD)
-To generate a machine-readable JSON report for automated pipelines:
-```bash
-pandoraspec https://api.example.com/spec.json --format json --output report.json
-```
-This outputs a file like `report.json` containing the full audit results and compliance score.
-
 ---
 
 ## ⚙️ Configuration
@@ -167,21 +160,27 @@ Checked for:
 - Auth enforcement on sensitive endpoints.
 - **Data Leakage Prevention (DLP)**: Scans responses for PII (Emails, SSNs, Credit Cards) and Secrets (AWS Keys, Private Keys).
 
+### Module E: AI Auditor (Virtual CISO)
+Uses OpenAI (GPT-4) to perform a semantic risk assessment of technical findings.
+- **Requires**: `OPENAI_API_KEY` environment variable.
+- **Output**: Generates a Risk Score (0-10) and an Executive Summary.
+- **Configuration**:
+  - `export OPENAI_API_KEY=sk-...`
+  - Override model: `--model gpt-3.5-turbo`
+
 ### Module D: The Report
 Generates a PDF report: **"DORA ICT Third-Party Technical Risk Assessment"**.
 
 ---
 
-## 🏭 Production Ready (CI/CD)
+## 🏭 CI/CD
 
 PanDoraSpec is designed for automated pipelines. It returns **Exit Code 1** if any issues are found, blocking deployments if needed.
 
 ### 🐳 Docker
 Run without installing Python:
 ```bash
-docker run -v $(pwd):/data pandoraspec \
-  https://api.example.com/spec.json \
-  --output /data/report.pdf
+docker run --rm -v $(pwd):/data ghcr.io/0d15e0/pandoraspec:latest https://petstore.swagger.io/v2/swagger.json --output /data/verification_report.pdf
 ```
 
 ### 🐙 GitHub Actions
@@ -189,7 +188,7 @@ Add this step to your`.github/workflows/pipeline.yml`:
 
 ```yaml
 - name: DORA Compliance Audit
-  uses: pandoraspec/pandoraspec@v1
+  uses: 0D15E0/PanDoraSpec@v0.2
   with:
     target: 'https://api.example.com/spec.json'
     vendor: 'MyCompany'

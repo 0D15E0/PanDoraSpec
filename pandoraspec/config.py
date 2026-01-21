@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ValidationError
 from typing import Dict, Any, Optional, List
 from .utils.logger import logger
+from .constants import DEFAULT_AI_MODEL
 
 class PandoraConfig(BaseModel):
     target: Optional[str] = Field(None, description="Target URL or path to OpenAPI schema")
@@ -8,6 +9,10 @@ class PandoraConfig(BaseModel):
     api_key: Optional[str] = Field(None, description="API Key for authenticated endpoints")
     dlp_allowed_domains: List[str] = Field(default_factory=list, description="List of domains to ignore in email leakage checks (e.g. company.com)")
     
+    # AI Auditor Configuration
+    openai_api_key: Optional[str] = Field(None, description="OpenAI API Key for Module E")
+    ai_model: str = Field(DEFAULT_AI_MODEL, description="Model to use for AI Assessment")
+
     seed_data: Dict[str, Any] = Field(
         default_factory=dict, 
         description="Seed data for API testing. Keys can be parameter names or endpoint definitions (METHOD /path)."
