@@ -6,6 +6,19 @@ PanDoraSpec is a CLI tool that performs deep technical due diligence on APIs to 
 
 ---
 
+## 💡 Why PanDoraSpec?
+
+### 1. Compliance as Code
+DORA audits are often manual, annual spreadsheets. PanDoraSpec provides **Continuous Governance**, proving that every commit has been verified for regulatory requirements (Drift, Resilience, Security).
+
+### 2. The "Virtual CISO" Translation
+Developers see `HTTP 500`. Executives see **"Article 25 Violation"**. Module E translates technical failures into **Regulatory Risk Scores**, bridging the gap between DevOps and the Boardroom.
+
+### 3. Zero-Config Guardrails
+It requires **no configuration** to catch critical issues. It acts as a safety net that catches schema drift and leaked secrets *before* they hit production.
+
+---
+
 ## 📦 Installation
 
 ```bash
