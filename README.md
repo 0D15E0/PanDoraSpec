@@ -107,6 +107,9 @@ To test **specific business workflows** (e.g., successfully retrieving a user pr
 pandoraspec https://petstore.swagger.io/v2/swagger.json --config seed_parameters.yaml
 ```
 
+> [!NOTE]
+> Any parameters **NOT** explicitly defined in your seed data will continue to be **fuzzed** with random values. This ensures that you still get the benefit of stress testing on non-critical fields while controlling the critical business logic.
+
 #### Configuration Hierarchy
 The engine resolves values in this order: **Endpoints > Verbs > General**.
 
