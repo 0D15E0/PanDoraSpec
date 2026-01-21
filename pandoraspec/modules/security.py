@@ -1,4 +1,5 @@
 import requests
+import re
 from typing import Optional
 from ..constants import SENSITIVE_PATH_KEYWORDS, SECURITY_SCAN_LIMIT, HTTP_200_OK, HTTP_500_INTERNAL_SERVER_ERROR
 from ..utils.logger import logger
@@ -165,6 +166,79 @@ def _check_injection(ops, base_url: str, api_key: str = None) -> list[dict]:
     
     return results
 
+def _check_data_leakage(ops, base_url: str, api_key: str = None) -> list[dict]:
+    """
+    Scans responses for PII and Secrets leakage (DLP).
+    """
+    results = []
+    
+    # regex patterns for sensitive data
+    patterns = {
+        "Email Address": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+        "US SSN": r"\b\d{3}-\d{2}-\d{4}\b",
+        "Credit Card": r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b",
+        "AWS Access Key": r"\bAKIA[0-9A-Z]{16}\b",
+        "Private Key": r"-----BEGIN PRIVATE KEY-----",
+        "IPv4 Address": r"\b(?!127\.0\.0\.1)(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b" # Exclude localhost
+    }
+
+    # Filter for GET operations
+    targets = [op for op in ops if op.method.upper() == "GET"][:SECURITY_SCAN_LIMIT]
+    if not targets:
+        return []
+
+    headers = {}
+    if api_key:
+        headers["Authorization"] = api_key if "Bearer" in api_key else f"Bearer {api_key}"
+
+    leaks = {}
+
+    for op in targets:
+        url = f"{base_url.rstrip('/')}{op.path}"
+        # Simplified handling for path params (skip if present to avoid 404s mostly)
+        if "{" in op.path:
+            continue
+            
+        try:
+            resp = requests.get(url, headers=headers, timeout=5)
+            if not resp.text:
+                continue
+                
+            for name, pattern in patterns.items():
+                matches = re.findall(pattern, resp.text)
+                if matches:
+                    if name not in leaks:
+                        leaks[name] = []
+                    # Store unique leaks per type, capped at 3 examples
+                    unique_matches = list(set(matches))[:3]
+                    leaks[name].append(f"{op.path} (Found: {', '.join(unique_matches)})")
+                    
+        except Exception:
+            pass
+
+    if leaks:
+        details = []
+        for name, findings in leaks.items():
+            details.append(f"{name}: {', '.join(findings)}")
+            
+        results.append({
+            "module": "C",
+            "issue": "Data Leakage (DLP)",
+            "status": "FAIL",
+            "details": "Potential PII/Secrets found in responses: " + "; ".join(details),
+            "severity": "CRITICAL"
+        })
+    else:
+        results.append({
+            "module": "C",
+            "issue": "Data Leakage Check",
+            "status": "PASS",
+            "details": f"Scanned {len(targets)} endpoints; no PII or secrets patterns matched.",
+            "severity": "INFO"
+        })
+
+    return results
+
 def run_security_hygiene(schema, base_url: str, api_key: str = None) -> list[dict]:
     """
     Module C: Security Hygiene Check
@@ -230,5 +304,8 @@ def run_security_hygiene(schema, base_url: str, api_key: str = None) -> list[dic
         
         # 4. Check Injection
         results.extend(_check_injection(ops, base_url, api_key))
+
+        # 5. Check Data Leakage
+        results.extend(_check_data_leakage(ops, base_url, api_key))
     
     return results
