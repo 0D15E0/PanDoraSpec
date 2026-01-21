@@ -1,6 +1,6 @@
-import responses
-
 from typing import Any
+
+import responses
 
 from pandoraspec.seed import SeedManager
 
