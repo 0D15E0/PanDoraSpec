@@ -22,6 +22,7 @@ def test_ai_module_pass_scenario():
     import openai  # Now it exists
     mock_client = MagicMock()
     # We need to assign it to the mocked module
+    openai.OpenAI = MagicMock() # type: ignore
     openai.OpenAI.return_value = mock_client
 
     mock_response = MagicMock()
@@ -41,6 +42,7 @@ def test_ai_module_pass_scenario():
 def test_ai_module_fail_scenario():
     import openai
     mock_client = MagicMock()
+    openai.OpenAI = MagicMock() # type: ignore
     openai.OpenAI.return_value = mock_client
 
     mock_response = MagicMock()
@@ -60,6 +62,7 @@ def test_ai_module_fail_scenario():
 def test_ai_module_invalid_response():
     import openai
     mock_client = MagicMock()
+    openai.OpenAI = MagicMock() # type: ignore
     openai.OpenAI.return_value = mock_client
 
     mock_response = MagicMock()

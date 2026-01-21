@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from pandoraspec.seed import SeedManager
@@ -5,7 +6,7 @@ from pandoraspec.seed import SeedManager
 
 class TestSeedManager:
     def test_apply_seed_data_flat(self):
-        seed_data = {"user_id": 123}
+        seed_data: dict[str, Any] = {"user_id": 123}
         manager = SeedManager(seed_data)
 
         mock_case = MagicMock()
@@ -43,7 +44,7 @@ class TestSeedManager:
 
     @patch("requests.request")
     def test_resolve_dynamic_value(self, mock_request):
-        seed_data = {}
+        seed_data: dict[str, Any] = {}
         manager = SeedManager(seed_data, base_url="http://test.com")
 
         # Mock successful response

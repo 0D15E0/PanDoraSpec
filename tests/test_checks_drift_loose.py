@@ -35,7 +35,7 @@ def test_loose_datetime_check():
         err_msg = "'2023-10-10 10:00:00' is not a 'date-time'"
         mock_conf.side_effect = MockAssertionError([MockCause(err_msg)])
 
-        results = run_drift_check(mock_schema, "http://api.test", None, seed_manager)
+        results = run_drift_check(mock_schema, "http://api.test", "", seed_manager)
 
         # We expect 3 results (2 real ones passing, 1 mocked one passing loosely)
         # Find the one dealing with response schema
@@ -64,7 +64,7 @@ def test_loose_datetime_check_still_fails_garbage():
         err_msg = "'not-a-date' is not a 'date-time'"
         mock_conf.side_effect = MockAssertionError([MockCause(err_msg)])
 
-        results = run_drift_check(mock_schema, "http://api.test", None, seed_manager)
+        results = run_drift_check(mock_schema, "http://api.test", "", seed_manager)
 
         schema_result = next((r for r in results if "response_schema_conformance" in r["issue"]), None)
         assert schema_result is not None

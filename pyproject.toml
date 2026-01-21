@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pandoraspec"
-version = "0.3.4"
+version = "0.3.5"
 description = "DORA Compliance Auditor for OpenAPI Specs"
 readme = "README.md"
 authors = [{ name = "Ulises Merlan", email = "ulimerlan@gmail.com" }]
@@ -40,6 +40,7 @@ ignore_missing_imports = true
 check_untyped_defs = true
 no_implicit_optional = false
 plugins = ["pydantic.mypy"]
+exclude = ["build/"]
 
 [tool.ruff]
 line-length = 120

@@ -10,6 +10,7 @@ from .modules.resilience import run_resilience_tests
 from .modules.security import run_security_hygiene
 from .seed import SeedManager
 from .utils.logger import logger
+from .utils.plugins import load_and_execute_hook
 from .utils.url import derive_base_url_from_target
 
 
@@ -72,6 +73,19 @@ class AuditEngine:
                 pass # Allow to continue if it's just a warning, but schemathesis might fail later
              else:
                 raise ValueError(f"Failed to load OpenAPI schema from {target}. Error: {str(e)}")
+
+        # -----------------------------------------------------
+        # Dynamic Authentication Hook
+        # -----------------------------------------------------
+        if self.config.auth_hook:
+            logger.info("Auth Hook detected. Executing pre-audit authentication script...")
+            try:
+                token = load_and_execute_hook(self.config.auth_hook.path, self.config.auth_hook.function_name)
+                logger.info(f"Auth Hook executed successfully. Token received (len={len(token)}).")
+                self.api_key = token
+            except Exception as e:
+                logger.error(f"Failed to execute Auth Hook: {e}")
+                raise e
 
         # Initialize Seed Manager
         self.seed_manager = SeedManager(self.seed_data, self.base_url, self.api_key)

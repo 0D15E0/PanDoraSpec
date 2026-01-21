@@ -34,7 +34,7 @@ class TestResilienceCheck:
 
         mock_op.as_strategy().example.return_value = mock_case
 
-        results = run_resilience_tests(mock_schema, "http://api.test", None, seed_manager)
+        results = run_resilience_tests(mock_schema, "http://api.test", "", seed_manager)
 
         statuses = {r["issue"]: r["status"] for r in results}
 
@@ -64,7 +64,7 @@ class TestResilienceCheck:
         mock_case.call.side_effect = [resp_slow] * FLOOD_REQUEST_COUNT + [resp_crash]
         mock_op.as_strategy().example.return_value = mock_case
 
-        results = run_resilience_tests(mock_schema, "http://api.test", None, seed_manager)
+        results = run_resilience_tests(mock_schema, "http://api.test", "", seed_manager)
 
         statuses = {r["issue"]: r["status"] for r in results}
 
@@ -88,7 +88,7 @@ class TestResilienceCheck:
         mock_case.call.return_value = resp_429 # Just return 429s for simplicity
         mock_op.as_strategy().example.return_value = mock_case
 
-        results = run_resilience_tests(mock_schema, "http://api.test", None, seed_manager)
+        results = run_resilience_tests(mock_schema, "http://api.test", "", seed_manager)
 
         statuses = {r["issue"]: r["status"] for r in results}
 

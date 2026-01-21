@@ -31,8 +31,8 @@ def load_config(config_path: str) -> PandoraConfig:
     return PandoraConfig()
 
 def run_dora_audit_logic(
-    target: str,
-    vendor: str,
+    target: str | None,
+    vendor: str | None,
     api_key: str | None = None,
     config_path: str | None = None,
     base_url: str | None = None,

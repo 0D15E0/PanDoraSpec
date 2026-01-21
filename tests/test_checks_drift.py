@@ -20,7 +20,7 @@ class TestDriftCheck:
 
         seed_manager = MagicMock()
 
-        results = run_drift_check(mock_schema, "https://api.test", None, seed_manager)
+        results = run_drift_check(mock_schema, "https://api.test", "", seed_manager)
 
         # 3 checks per operation * 1 operation = 3 results
         assert len(results) == 3
@@ -44,7 +44,7 @@ class TestDriftCheck:
 
         seed_manager = MagicMock()
 
-        results = run_drift_check(mock_schema, "https://api.test", None, seed_manager)
+        results = run_drift_check(mock_schema, "https://api.test", "", seed_manager)
 
         statuses = [r["status"] for r in results]
         assert "FAIL" in statuses

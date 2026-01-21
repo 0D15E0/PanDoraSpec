@@ -6,6 +6,11 @@ from .constants import DEFAULT_AI_MODEL
 from .utils.logger import logger
 
 
+class AuthHookConfig(BaseModel):
+    path: str = Field(..., description="Path to the Python script (e.g. 'scripts/auth.py')")
+    function_name: str = Field("get_token", description="Name of the function to call. Must return a string.")
+
+
 class PandoraConfig(BaseModel):
     target: str | None = Field(None, description="Target URL or path to OpenAPI schema")
     vendor: str | None = Field(None, description="Vendor name for reports")
@@ -20,6 +25,8 @@ class PandoraConfig(BaseModel):
         default_factory=dict,
         description="Seed data for API testing. Keys can be parameter names or endpoint definitions (METHOD /path)."
     )
+
+    auth_hook: AuthHookConfig | None = Field(None, description="Configuration for external authentication script")
 
 def validate_config(config_dict: dict[str, Any]) -> PandoraConfig:
     """

@@ -1,8 +1,10 @@
 import responses
 
+from typing import Any
+
 from pandoraspec.seed import SeedManager
 
-SEED_CONFIG = {
+SEED_CONFIG: dict[str, Any] = {
     "endpoints": {
         "/auth/login": {
             "POST": {
@@ -84,9 +86,11 @@ class TestSeedRecursion:
 
         # Check Call 1: Login
         # Note: SeedManager sends unused params as query params by default
-        assert "http://api.example.com/auth/login" in responses.calls[0].request.url
-        assert "username=admin" in responses.calls[0].request.url
-        assert "password=password123" in responses.calls[0].request.url
+        req_url = responses.calls[0].request.url
+        assert req_url is not None
+        assert "http://api.example.com/auth/login" in req_url
+        assert "username=admin" in req_url
+        assert "password=password123" in req_url
 
         # Check Call 2: Users (with token)
         assert responses.calls[1].request.url == "http://api.example.com/users?token=valid-token-123"

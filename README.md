@@ -94,6 +94,38 @@ Ensure your configuration file is valid before running an audit:
 pandoraspec validate --config pandoraspec.yaml
 ```
 
+pandoraspec validate --config pandoraspec.yaml
+```
+
+### 🔐 Dynamic Authentication (Hooks)
+For complex flows (OAuth2, MFA, etc.) that require logic beyond a static API Key, you can use a **Pre-Audit Hook**.
+This runs a custom Python script to acquire a token *before* the audit starts.
+
+**1. Create a script (`auth_script.py`)** that returns your token as a string:
+```python
+import os
+import requests
+
+def get_token():
+    # Example: Fetch token from an OAuth2 endpoint
+    response = requests.post("https://auth.example.com/token", data={
+        "client_id": os.getenv("CLIENT_ID"),
+        "client_secret": os.getenv("CLIENT_SECRET"),
+        "grant_type": "client_credentials"
+    })
+    return response.json()["access_token"]
+```
+
+**2. Configure `pandoraspec.yaml`**:
+```yaml
+target: "https://api.example.com/openapi.json"
+auth_hook:
+  path: "auth_script.py"
+  function_name: "get_token"
+```
+
+PanDoraSpec will execute `get_token()`, take the returned string, and use it as the `Authorization: Bearer <token>` for all audit requests.
+
 ---
 
 ## 🧪 Testing Modes

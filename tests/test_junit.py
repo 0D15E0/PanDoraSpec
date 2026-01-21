@@ -27,6 +27,7 @@ def test_generate_junit_xml(tmp_path):
 
     # Check test suite
     suite = root.find("testsuite")
+    assert suite is not None
     assert suite.get("name") == "Drift Check"
 
     # Check cases
