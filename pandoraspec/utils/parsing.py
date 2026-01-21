@@ -1,5 +1,6 @@
-from typing import Any, Optional
 import re
+from typing import Any
+
 
 def extract_json_value(data: Any, path: str) -> Any:
     """
@@ -22,7 +23,7 @@ def extract_json_value(data: Any, path: str) -> Any:
             break
     return val
 
-def extract_regex_value(text: str, pattern: str) -> Optional[str]:
+def extract_regex_value(text: str, pattern: str) -> str | None:
     """
     Extracts a value from text using a regex pattern.
     Returns the first group if present, otherwise the whole match.

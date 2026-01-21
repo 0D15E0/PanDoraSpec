@@ -1,6 +1,6 @@
-import yaml
 import os
-from typing import Dict, List, Any
+
+import yaml
 from rich.console import Console
 
 console = Console()
@@ -26,16 +26,16 @@ def validate_config(config_path: str) -> bool:
         raise ValidationError("Config must be a dictionary.")
 
     # Required fields
-    # actually, strictly speaking, CLI args can override these, 
+    # actually, strictly speaking, CLI args can override these,
     # but a defined config usually implies intent to define them.
     # We will warn if missing, but maybe not fail if the user intends to supply them via CLI.
     # However, 'seed_data' is the main reason for a config file.
-    
+
     issues = []
 
     if "target" not in config:
         issues.append("Missing 'target' field (OpenAPI URL).")
-    
+
     if "vendor" not in config:
         issues.append("Missing 'vendor' field.")
 

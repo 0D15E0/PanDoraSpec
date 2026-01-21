@@ -1,12 +1,13 @@
-import typer
-import yaml
 import os
+from typing import Any
+
+import yaml
 from rich.console import Console
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 
 console = Console()
 
-def run_init_wizard(output_file: str = "pandoraspec.yaml"):
+def run_init_wizard(output_file: str = "pandoraspec.yaml") -> None:
     """
     Interactive wizard to create a PanDoraSpec configuration file.
     """
@@ -21,12 +22,12 @@ def run_init_wizard(output_file: str = "pandoraspec.yaml"):
 
     # 3. API Key (Optional)
     api_key_env = Prompt.ask("Env variable name for API Key? (Leave empty to skip)", default="")
-    
+
     # 4. Seed Data template?
     include_seed = Confirm.ask("Do you want to include a template for Seed Data?", default=True)
 
     # Build the config dictionary
-    config_data = {
+    config_data: dict[str, Any] = {
         "target": target,
         "vendor": vendor,
     }
@@ -64,9 +65,9 @@ def run_init_wizard(output_file: str = "pandoraspec.yaml"):
     try:
         with open(output_file, "w") as f:
             yaml.dump(config_data, f, sort_keys=False, default_flow_style=False)
-        
+
         console.print(f"\n[bold green]Success![/bold green] Configuration written to [bold]{output_file}[/bold]")
         console.print(f"Run your audit with: [cyan]pandoraspec {target} --config {output_file}[/cyan]")
-        
+
     except Exception as e:
         console.print(f"[bold red]Error writing file:[/bold red] {e}")

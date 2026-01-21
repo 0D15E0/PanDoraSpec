@@ -1,7 +1,9 @@
-import os
+from unittest.mock import ANY, patch
+
 import yaml
-from unittest.mock import patch, MagicMock, ANY
+
 from pandoraspec.orchestrator import run_dora_audit_logic
+
 
 def test_config_precedence(tmp_path):
     # Setup config file
@@ -13,19 +15,19 @@ def test_config_precedence(tmp_path):
     }
     with open(config_file, "w") as f:
         yaml.dump(config_data, f)
-        
+
     # Mock Engine to avoid running real audit
     with patch("pandoraspec.orchestrator.AuditEngine") as MockEngine:
         mock_instance = MockEngine.return_value
         mock_instance.run_full_audit.return_value = {"drift": [], "resilience": [], "security": []}
-        
+
         # Mock Report Generator to avoid file IO
         with patch("pandoraspec.orchestrator.generate_report") as mock_report:
             mock_report.return_value = "report.pdf"
-            
+
             # Case 1: Config Only
             run_dora_audit_logic(
-                target=None, 
+                target=None,
                 vendor=None,
                 api_key=None,
                 config_path=str(config_file)
@@ -36,11 +38,11 @@ def test_config_precedence(tmp_path):
             assert kwargs['api_key'] == "config-key"
             # Check Report used Config Vendor
             mock_report.assert_called_with("ConfigVendor", ANY, output_path=None)
-            
+
             # Reset checks
             MockEngine.reset_mock()
             mock_report.reset_mock()
-            
+
             # Case 2: CLI Overrides
             run_dora_audit_logic(
                 target="http://cli-target.com",
@@ -52,10 +54,10 @@ def test_config_precedence(tmp_path):
             assert kwargs['target'] == "http://cli-target.com"
             assert kwargs['api_key'] == "cli-key"
             mock_report.assert_called_with("CLIVendor", ANY, output_path=None)
-            
+
             # Reset checks
             MockEngine.reset_mock()
-            
+
             # Case 3: CLI + Default (No Config)
             run_dora_audit_logic(
                 target="http://cli-target.com",

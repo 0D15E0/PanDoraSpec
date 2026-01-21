@@ -1,10 +1,13 @@
 import html
-from schemathesis import checks
-from schemathesis.specs.openapi import checks as oai_checks
-from schemathesis.checks import CheckContext, ChecksConfig
 from urllib.parse import unquote
+
+from schemathesis import checks
+from schemathesis.checks import CheckContext, ChecksConfig
+from schemathesis.specs.openapi import checks as oai_checks
+
 from ..seed import SeedManager
 from ..utils.logger import logger
+
 
 def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManager) -> list[dict]:
     """
@@ -19,7 +22,7 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
         "response_schema_conformance": oai_checks.response_schema_conformance
     }
     check_names = list(check_map.keys())
-    
+
     # Schemathesis 4.x checks require a context object
     checks_config = ChecksConfig()
     check_ctx = CheckContext(
@@ -29,11 +32,11 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
         config=checks_config,
         transport_kwargs=None,
     )
-    
+
     for op in schema.get_all_operations():
         # Handle Result type (Ok/Err) wrapping if present
         operation = op.ok() if hasattr(op, "ok") else op
-        
+
         try:
             # Generate test case
             try:
@@ -44,7 +47,7 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                     case = cases[0] if cases else None
                 except (AttributeError, Exception):
                     case = None
-            
+
             if not case:
                 continue
 
@@ -57,9 +60,9 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                             display_value = unquote(str(value))
                         else:
                             display_value = "random"
-                        
+
                         formatted_path = formatted_path.replace(f"{{{key}}}", f"{{{key}:{display_value}}}")
-            
+
             logger.info(f"AUDIT LOG: Testing endpoint {operation.method.upper()} {formatted_path}")
 
             headers = {}
@@ -70,17 +73,17 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
             # Call the API
             target_url = f"{base_url.rstrip('/')}/{formatted_path.lstrip('/')}"
             logger.debug(f"AUDIT LOG: Calling {operation.method.upper()} {target_url}")
-            
+
             response = case.call(base_url=base_url, headers=headers)
             logger.debug(f"AUDIT LOG: Response Status Code: {response.status_code}")
-            
+
             # We manually call the check function to ensure arguments are passed correctly.
             for check_name in check_names:
                 check_func = check_map[check_name]
                 try:
                     # Direct call: check_func(ctx, response, case)
                     check_func(check_ctx, response, case)
-                    
+
                     # If we get here, the check passed
                     results.append({
                         "module": "A",
@@ -95,13 +98,13 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                     # This catches actual drift (e.g., Schema validation failed)
                     # Capture and format detailed error info
                     validation_errors = []
-                    
+
                     # Safely get causes if they exist and are iterable
                     causes = getattr(e, "causes", None)
                     if causes:
                         for cause in causes:
                             msg = cause.message if hasattr(cause, "message") else str(cause)
-                            
+
                             # START: Loose DateTime Check
                             # If strict validation fails on date-time, try to be forgiving
                             if "is not a 'date-time'" in msg:
@@ -115,13 +118,13 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                                     datetime.fromisoformat(normalized)
                                     # If we parsed it, it's a False Positive for our purposes (drift is minor)
                                     logger.info(f"AUDIT LOG: Ignoring strict date-time failure for plausible value: {val_str}")
-                                    continue 
+                                    continue
                                 except Exception:
                                     pass
                             # END: Loose DateTime Check
 
                             validation_errors.append(msg)
-                    
+
                     if not validation_errors:
                         # If we filtered everything out, consider it a PASS
                         if causes:
@@ -136,10 +139,10 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                              continue
 
                         validation_errors.append(str(e) or "Validation failed")
-                    
+
                     err_msg = "<br>".join(validation_errors)
                     safe_err = html.escape(err_msg)
-                    
+
                     # Add helpful context (Status & Body Preview)
                     context_msg = f"Status: {response.status_code}"
                     try:
@@ -149,7 +152,7 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                             context_msg += f"<br>Response: {safe_preview}"
                     except Exception:
                         pass
-                        
+
                     full_details = f"<strong>Error:</strong> {safe_err}<br><br><strong>Context:</strong><br>{context_msg}"
 
                     logger.warning(f"AUDIT LOG: Validation {check_name} failed: {err_msg}")
@@ -172,9 +175,9 @@ def run_drift_check(schema, base_url: str, api_key: str, seed_manager: SeedManag
                         "details": str(e),
                         "severity": "HIGH"
                     })
-                    
+
         except Exception as e:
             logger.critical(f"AUDIT LOG: Critical Error during endpoint test: {str(e)}")
             continue
-            
+
     return results

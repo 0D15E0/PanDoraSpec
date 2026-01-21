@@ -1,6 +1,8 @@
-from pydantic import ValidationError
 import pytest
-from pandoraspec.config import validate_config, PandoraConfig
+from pydantic import ValidationError
+
+from pandoraspec.config import PandoraConfig, validate_config
+
 
 def test_valid_config():
     data = {"seed_data": {"user_id": 123}}

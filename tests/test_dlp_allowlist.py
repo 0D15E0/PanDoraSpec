@@ -1,6 +1,8 @@
-import responses
-from pandoraspec.modules.security import _check_data_leakage
 from collections import namedtuple
+
+import responses
+
+from pandoraspec.modules.security import _check_data_leakage
 
 # Mocking a schemathesis-like operation object
 Operation = namedtuple("Operation", ["method", "path"])
@@ -21,7 +23,7 @@ def test_dlp_allowlist():
     )
 
     # 1. Without allowlist (Should catch both)
-    # Note: Regex finds both. 
+    # Note: Regex finds both.
     results = _check_data_leakage(ops, base_url, allowed_domains=[])
     assert len(results) == 1
     assert results[0]["status"] == "FAIL"
@@ -51,7 +53,7 @@ def test_dlp_allowlist_full_ignore():
     )
 
     results = _check_data_leakage(ops, base_url, allowed_domains=["safe-domain.io"])
-    
+
     # Should PASS because the only finding was allowed
     assert len(results) == 1
     assert results[0]["status"] == "PASS"

@@ -1,16 +1,19 @@
 import re
+from typing import Any
+
 import requests
-from typing import Any, Optional
-from .utils.parsing import extract_json_value, extract_regex_value
+
 from .utils.logger import logger
+from .utils.parsing import extract_json_value, extract_regex_value
+
 
 class SeedManager:
-    def __init__(self, seed_data: dict[str, Any], base_url: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(self, seed_data: dict[str, Any], base_url: str | None = None, api_key: str | None = None):
         self.seed_data = seed_data
         self.base_url = base_url
         self.api_key = api_key
-        self.dynamic_cache = {}
-        self._resolving_stack = set() # To detect recursion cycles
+        self.dynamic_cache: dict[str, Any] = {}
+        self._resolving_stack: set[str] = set() # To detect recursion cycles
 
     def _get_seed_config(self, method: str, path: str) -> dict[str, Any]:
         """Merges seed data for a specific endpoint (General < Verb < Endpoint)"""
@@ -18,7 +21,7 @@ class SeedManager:
             return {}
 
         is_hierarchical = any(k in self.seed_data for k in ['general', 'verbs', 'endpoints'])
-        
+
         if is_hierarchical:
             # 1. General
             merged_data = self.seed_data.get('general', {}).copy()
@@ -30,8 +33,8 @@ class SeedManager:
             merged_data.update(endpoint_data)
         else:
             merged_data = self.seed_data.copy()
-            
-        return merged_data
+
+        return dict(merged_data)
 
     def _resolve_dynamic_value(self, config_value: Any) -> Any:
         """Resolves dynamic seed values with recursion support"""
@@ -39,7 +42,7 @@ class SeedManager:
             return config_value
 
         endpoint_def = config_value["from_endpoint"]
-        
+
         # Check cache first
         if endpoint_def in self.dynamic_cache:
             return self.dynamic_cache[endpoint_def]
@@ -48,7 +51,7 @@ class SeedManager:
         if endpoint_def in self._resolving_stack:
             logger.warning(f"Circular dependency detected for {endpoint_def}. Breaking cycle.")
             return None
-        
+
         self._resolving_stack.add(endpoint_def)
 
         try:
@@ -66,7 +69,7 @@ class SeedManager:
             # We get the seed config for the *upstream* endpoint we are about to call
             upstream_seed_config = self._get_seed_config(method, path)
             resolved_upstream_params = {}
-            
+
             for k, v in upstream_seed_config.items():
                 resolved_val = self._resolve_dynamic_value(v)
                 if resolved_val is not None:
@@ -76,8 +79,8 @@ class SeedManager:
             # Iterate through resolved params to inject into path (e.g. /users/{id})
             # Also fall back to general seeds if not explicitly resolved above (legacy behavior)
             general_seeds = self.seed_data.get('general', {}) if self.seed_data else {}
-            
-            def replace_param(match):
+
+            def replace_param(match) -> str:
                 param_name = match.group(1)
                 # specific resolved param > general seed
                 if param_name in resolved_upstream_params:
@@ -85,11 +88,11 @@ class SeedManager:
                 if param_name in general_seeds:
                      return str(general_seeds[param_name])
                 logger.warning(f"Missing seed value for {{{param_name}}} in dynamic endpoint {endpoint_def}")
-                return match.group(0)
+                return str(match.group(0))
 
             url_path = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, path)
             url = f"{self.base_url.rstrip('/')}/{url_path.lstrip('/')}"
-            
+
             # Prepare Request
             headers = {}
             if self.api_key:
@@ -105,7 +108,7 @@ class SeedManager:
 
             logger.debug(f"AUDIT LOG: Resolving dynamic seed from {method} {url_path}")
             response = requests.request(method, url, headers=headers, params=query_params)
-            
+
             if response.status_code >= 400:
                 logger.warning(f"Dynamic seed request failed with {response.status_code}")
                 return None
@@ -127,7 +130,7 @@ class SeedManager:
             # Regex Extraction
             if regex_pattern and result is not None:
                 result = extract_regex_value(str(result), regex_pattern)
-            
+
             self.dynamic_cache[endpoint_def] = result
             return result
 
@@ -137,7 +140,7 @@ class SeedManager:
         finally:
             self._resolving_stack.discard(endpoint_def)
 
-    def apply_seed_data(self, case):
+    def apply_seed_data(self, case) -> set[str]:
         """Helper to inject seed data into test cases with hierarchy: General < Verbs < Endpoints"""
         if not self.seed_data:
             return set()
@@ -170,12 +173,12 @@ class SeedManager:
                 if key in resolved_data:
                     case.query[key] = resolved_data[key]
                     seeded_keys.add(key)
-                    
+
         # Inject into Headers (e.g., X-Tenant-ID)
         if hasattr(case, 'headers') and case.headers:
             for key in case.headers:
                 if key in resolved_data:
                     case.headers[key] = str(resolved_data[key])
                     seeded_keys.add(key)
-        
+
         return seeded_keys

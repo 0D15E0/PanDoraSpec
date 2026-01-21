@@ -1,7 +1,10 @@
+import sys
+
 import typer
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
+
 from .orchestrator import run_dora_audit_logic
 
 app = typer.Typer(help="DORA Audit CLI - Verify Compliance of OpenAI Specs")
@@ -16,7 +19,7 @@ def run_audit(
     output_format: str = typer.Option("pdf", "--format", "-f", help="Report format (pdf, json, junit)"),
     output_path: str = typer.Option(None, "--output", "-o", help="Custom path for the output report file"),
     ai_model: str = typer.Option(None, "--model", "-m", help="OpenAI Model (e.g. gpt-4o, gpt-3.5-turbo)")
-):
+) -> None:
     """
     Run a DORA audit against an OpenAPI schema.
     """
@@ -35,10 +38,10 @@ def run_audit(
             output_path=output_path,
             ai_model=ai_model
         )
-        
+
         if audit_result.seed_count > 0:
             console.print(f"[green]Loaded {audit_result.seed_count} seed values from config[/green]")
-        
+
         results = audit_result.results
 
         # Display Summary Table
@@ -66,12 +69,12 @@ def run_audit(
         table.add_row("Module C: Security", sec_status, f"{sec_pass} / {sec_fail}")
 
         console.print(table)
-        
+
         console.print(Panel(f"[bold green]Audit Complete![/bold green]\n📄 Report generated: [link={audit_result.report_path}]{audit_result.report_path}[/link]", border_style="green"))
 
         # Exit with error code if there are any failures
         if drift_fail > 0 or res_fail > 0 or sec_fail > 0:
-            console.print(f"\n[bold red]FAILURE:[/bold red] Use the report to fix the issues.")
+            console.print("\n[bold red]FAILURE:[/bold red] Use the report to fix the issues.")
             raise typer.Exit(code=1)
 
     except typer.Exit:
@@ -83,7 +86,7 @@ def run_audit(
 @app.command()
 def init(
     output: str = typer.Option("pandoraspec.yaml", "--output", "-o", help="Output path for the config file")
-):
+) -> None:
     """
     Initialize a new configuration file.
     """
@@ -93,26 +96,27 @@ def init(
 @app.command()
 def validate(
     config: str = typer.Option(..., "--config", "-c", help="Path to .yaml configuration file")
-):
+) -> None:
     """
     Validate a configuration file.
     """
-    from .validator import validate_config, ValidationError
+    from .validator import ValidationError, validate_config
     try:
         validate_config(config)
     except ValidationError as e:
         console.print(f"[bold red]Validation Failed:[/bold red] {e}")
         raise typer.Exit(code=1)
 
-import sys
 
-def main():
+
+
+def main() -> None:
     # Simple dispatch logic to support both legacy "pandoraspec <url>" and new "pandoraspec init"
     # If the first argument is a known command, invoke the Typer app.
     # Otherwise, assume it's the default "audit" behavior.
-    
+
     known_commands = ["init", "validate"]
-    
+
     if len(sys.argv) > 1 and sys.argv[1] in known_commands:
         app()
     else:

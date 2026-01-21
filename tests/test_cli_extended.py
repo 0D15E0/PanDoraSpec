@@ -1,9 +1,7 @@
-import os
 import yaml
-import pytest
 from typer.testing import CliRunner
+
 from pandoraspec.cli import app
-from pandoraspec.validator import validate_config, ValidationError
 
 runner = CliRunner()
 

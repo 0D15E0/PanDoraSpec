@@ -24,8 +24,30 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "responses"
+    "responses",
+    "mypy",
+    "types-requests",
+    "types-PyYAML",
+    "ruff",
+    "pytest-cov"
 ]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+no_implicit_optional = false
+plugins = ["pydantic.mypy"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"] # Err, Pyflakes, Isort, Warning
+ignore = ["E501"]
 
 [project.scripts]
 # This maps the terminal command 'pandoraspec' to your python code

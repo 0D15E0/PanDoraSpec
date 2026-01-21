@@ -1,9 +1,11 @@
 import os
-from typing import List, Dict, Any
+from typing import Any
+
 from ..config import PandoraConfig
 from ..utils.logger import logger
 
-def run_ai_assessment(spec_schema: Any, aggregated_results: Dict[str, List[Dict]], config: PandoraConfig) -> List[Dict]:
+
+def run_ai_assessment(spec_schema: Any, aggregated_results: dict[str, list[dict]], config: PandoraConfig) -> list[dict]:
     """
     Module E: AI Auditor
     Uses OpenAI to provide a semantic risk assessment of the technical findings.
@@ -20,13 +22,13 @@ def run_ai_assessment(spec_schema: Any, aggregated_results: Dict[str, List[Dict]
         return []
 
     logger.info("AUDIT LOG: Starting Module E: AI Risk Assessment...")
-    
+
     # Initialize OpenAI Client
     client = openai.OpenAI(api_key=api_key)
 
     # 1. Summarize Findings
     summary_text = _summarize_technical_findings(aggregated_results)
-    
+
     # 2. Extract API Info
     api_title = "Unknown API"
     try:
@@ -37,25 +39,25 @@ def run_ai_assessment(spec_schema: Any, aggregated_results: Dict[str, List[Dict]
             description = info.get("description", "")
         else:
             description = "No description available."
-    except:
+    except Exception:
         description = "No description available."
 
     # 3. Construct Prompt
     prompt = f"""
     You are a Virtual CISO (Chief Information Security Officer) auditing an API for DORA (Digital Operational Resilience Act) compliance.
-    
+
     API Name: {api_title}
     Description: {description}
-    
+
     Here are the technical findings from our automated scanner:
     {summary_text}
-    
+
     Task:
     1. Analyze these findings in the context of DORA compliance (Resilience, Security, Integrity).
     2. Provide a 'Compliance Risk Score' from 0 (Safe) to 10 (Critical Risk).
     3. Write a 1-paragraph Executive Summary explaining the risk to a non-technical board member.
     4. Issue a final verdict: PASS or FAIL.
-    
+
     Format your response exactly as valid JSON:
     {{
         "risk_score": <int>,
@@ -73,11 +75,14 @@ def run_ai_assessment(spec_schema: Any, aggregated_results: Dict[str, List[Dict]
             ],
             response_format={"type": "json_object"}
         )
-        
+
         content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty response from AI")
+
         import json
         assessment = json.loads(content)
-        
+
         # Convert to standard result format
         result = {
             "module": "E",
@@ -98,9 +103,9 @@ def run_ai_assessment(spec_schema: Any, aggregated_results: Dict[str, List[Dict]
             "severity": "LOW"
         }]
 
-def _summarize_technical_findings(results: Dict[str, List[Dict]]) -> str:
+def _summarize_technical_findings(results: dict[str, list[dict]]) -> str:
     summary = []
-    
+
     for module, checks in results.items():
         failures = [c for c in checks if c["status"] == "FAIL"]
         if failures:
@@ -109,5 +114,5 @@ def _summarize_technical_findings(results: Dict[str, List[Dict]]) -> str:
                 summary.append(f"- {f['issue']} ({f['severity']}): {f['details']}")
         else:
             summary.append(f"\n[{module.upper()}] Passed all checks.")
-            
+
     return "\n".join(summary)

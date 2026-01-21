@@ -1,7 +1,8 @@
-import responses
-import re
-from pandoraspec.modules.security import _check_data_leakage
 from collections import namedtuple
+
+import responses
+
+from pandoraspec.modules.security import _check_data_leakage
 
 # Mocking a schemathesis-like operation object
 Operation = namedtuple("Operation", ["method", "path"])
@@ -23,12 +24,12 @@ def test_dlp_detection():
 
     assert len(results) == 1
     issue = results[0]
-    
+
     assert issue["module"] == "C"
     assert issue["issue"] == "Data Leakage (DLP)"
     assert issue["status"] == "FAIL"
     assert issue["severity"] == "CRITICAL"
-    
+
     details = issue["details"]
     assert "Email Address" in details
     assert "user@example.com" in details

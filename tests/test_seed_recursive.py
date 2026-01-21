@@ -1,4 +1,5 @@
 import responses
+
 from pandoraspec.seed import SeedManager
 
 SEED_CONFIG = {
@@ -72,24 +73,24 @@ class TestSeedRecursion:
 
         # Mock Level 3: The actual dynamic call we are making
         # We are testing _resolve_dynamic_value directly for 'user_id'
-        
+
         user_id_config = SEED_CONFIG["endpoints"]["/users/{user_id}/details"]["GET"]["user_id"]
-        
+
         # ACT
         result = manager._resolve_dynamic_value(user_id_config)
 
         # ASSERT
         assert len(responses.calls) == 2
-        
+
         # Check Call 1: Login
         # Note: SeedManager sends unused params as query params by default
         assert "http://api.example.com/auth/login" in responses.calls[0].request.url
         assert "username=admin" in responses.calls[0].request.url
         assert "password=password123" in responses.calls[0].request.url
-        
+
         # Check Call 2: Users (with token)
         assert responses.calls[1].request.url == "http://api.example.com/users?token=valid-token-123"
-        
+
         # Check Result (extracted and regex matched)
         # "user_999" -> regex "user_([0-9]+)" -> group 1 is "999"
         assert result == "999"
@@ -102,12 +103,12 @@ class TestSeedRecursion:
         """
         base_url = "http://api.example.com"
         manager = SeedManager(SEED_CONFIG, base_url=base_url)
-        
+
         config_a = SEED_CONFIG["endpoints"]["/cycle/a"]["GET"]["val"]
-        
+
         # ACT
         result = manager._resolve_dynamic_value(config_a)
-        
+
         # ASSERT
         assert result is None
         # Should print a warning (captured logs check could be added if needed)

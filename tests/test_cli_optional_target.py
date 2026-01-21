@@ -1,8 +1,10 @@
-from typer.testing import CliRunner
+from unittest.mock import patch
+
 import typer
+from typer.testing import CliRunner
+
 # We need to test the actual Typer app setup or run_audit
 from pandoraspec.cli import run_audit
-from unittest.mock import patch, ANY
 
 runner = CliRunner()
 
@@ -26,7 +28,7 @@ def test_cli_target_optional(tmp_path):
         # Invocation: pandoraspec --config ...
         # Note: Typer treats --flags relative to arguments.
         result = runner.invoke(app, ["--config", str(config_file)])
-        
+
         assert result.exit_code == 0
         # Verify target was passed as None to the function (Typer parsing check)
         # But wait, logic resolves it inside. We mock run_dora_audit_logic.
@@ -38,7 +40,7 @@ def test_cli_target_optional(tmp_path):
         # So target passed to logic SHOULD be None.
         assert kwargs['target'] is None
         assert kwargs['config_path'] == str(config_file)
-        
+
         # 2. Run with target (Legacy)
         mock_logic.reset_mock()
         result = runner.invoke(app, ["https://legacy.com"])

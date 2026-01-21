@@ -1,13 +1,15 @@
 import time
-from ..seed import SeedManager
+
 from ..constants import (
-    FLOOD_REQUEST_COUNT, 
-    LATENCY_THRESHOLD_WARN, 
-    RECOVERY_WAIT_TIME,
+    FLOOD_REQUEST_COUNT,
     HTTP_429_TOO_MANY_REQUESTS,
-    HTTP_500_INTERNAL_SERVER_ERROR
+    HTTP_500_INTERNAL_SERVER_ERROR,
+    LATENCY_THRESHOLD_WARN,
+    RECOVERY_WAIT_TIME,
 )
+from ..seed import SeedManager
 from ..utils.logger import logger
+
 
 def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: SeedManager) -> list[dict]:
     """
@@ -18,16 +20,16 @@ def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: Seed
     ops = list(schema.get_all_operations())
     if not ops:
         return []
-    
+
     logger.info("AUDIT LOG: Starting Module B: Resilience Stress Test (flooding requests)...")
-    
+
     operation = ops[0].ok() if hasattr(ops[0], "ok") else ops[0]
-    
+
     # Simulate flooding
     responses = []
     latencies = []
-    
-    for _ in range(FLOOD_REQUEST_COUNT): 
+
+    for _ in range(FLOOD_REQUEST_COUNT):
         try:
             case = operation.as_strategy().example()
         except (AttributeError, Exception):
@@ -36,7 +38,7 @@ def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: Seed
                 case = cases[0] if cases else None
             except (AttributeError, Exception):
                 case = None
-        
+
         if case:
             seed_manager.apply_seed_data(case)
 
@@ -44,7 +46,7 @@ def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: Seed
             if api_key:
                 auth_header = api_key if api_key.lower().startswith("bearer ") else f"Bearer {api_key}"
                 headers["Authorization"] = auth_header
-                
+
             try:
                 resp = case.call(base_url=base_url, headers=headers)
                 responses.append(resp)
@@ -60,34 +62,34 @@ def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: Seed
                     latencies.append(0.0)
             except Exception as e:
                 logger.warning(f"Request failed during flood: {e}")
-    
+
     has_429 = any(r.status_code == HTTP_429_TOO_MANY_REQUESTS for r in responses)
     has_500 = any(r.status_code == HTTP_500_INTERNAL_SERVER_ERROR for r in responses)
-    
+
     avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
 
     # Recovery Check (Circuit Breaker)
     logger.info(f"Waiting {RECOVERY_WAIT_TIME}s for circuit breaker recovery check...")
     time.sleep(RECOVERY_WAIT_TIME)
-    
+
     recovery_failed = False
     try:
         # Attempt one probe request to see if API is back to normal
         # We regenerate a case to be safe
         try:
             recovery_case = operation.as_strategy().example()
-        except:
+        except Exception:
              cases = list(operation.make_case())
              recovery_case = cases[0] if cases else None
-        
+
         if recovery_case:
             seed_manager.apply_seed_data(recovery_case)
             rec_headers = {}
             if api_key:
                 rec_headers["Authorization"] = api_key if api_key.lower().startswith("bearer ") else f"Bearer {api_key}"
-                
+
             recovery_resp = recovery_case.call(base_url=base_url, headers=rec_headers)
-            
+
             # If it returns 500, it's definitely NOT recovered
             if recovery_resp.status_code == HTTP_500_INTERNAL_SERVER_ERROR:
                 recovery_failed = True
@@ -98,7 +100,7 @@ def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: Seed
         recovery_failed = True
 
     # Helper to create consistent result objects
-    def _create_result(issue, status, details, severity):
+    def _create_result(issue: str, status: str, details: str, severity: str) -> dict[str, str]:
         return {
             "module": "B",
             "issue": issue,

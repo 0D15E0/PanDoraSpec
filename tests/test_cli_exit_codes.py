@@ -1,12 +1,14 @@
-from unittest.mock import MagicMock, patch
-from typer.testing import CliRunner
+from unittest.mock import patch
+
 import typer
+from typer.testing import CliRunner
+
 from pandoraspec.cli import run_audit
 from pandoraspec.orchestrator import AuditRunResult
 
 runner = CliRunner()
-test_app = typer.Typer()
-test_app.command()(run_audit)
+cli_app = typer.Typer()
+cli_app.command()(run_audit)
 
 @patch("pandoraspec.cli.run_dora_audit_logic")
 def test_exit_code_on_success(mock_audit):
@@ -21,7 +23,7 @@ def test_exit_code_on_success(mock_audit):
         report_path="report.pdf"
     )
 
-    result = runner.invoke(test_app, ["https://example.com/spec.json"])
+    result = runner.invoke(cli_app, ["https://example.com/spec.json"])
     assert result.exit_code == 0
 
 @patch("pandoraspec.cli.run_dora_audit_logic")
@@ -37,6 +39,6 @@ def test_exit_code_on_failure(mock_audit):
         report_path="report.pdf"
     )
 
-    result = runner.invoke(test_app, ["https://example.com/spec.json"])
+    result = runner.invoke(cli_app, ["https://example.com/spec.json"])
     assert result.exit_code == 1
     assert "FAILURE" in result.stdout
