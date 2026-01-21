@@ -59,7 +59,8 @@ def run_dora_audit_logic(
         target=final_target, 
         api_key=final_api_key, 
         seed_data=seed_data, 
-        base_url=base_url
+        base_url=base_url,
+        allowed_domains=getattr(config_data, "dlp_allowed_domains", [])
     )
     
     # 4. Run Audit

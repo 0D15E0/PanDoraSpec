@@ -9,11 +9,12 @@ from .modules.resilience import run_resilience_tests
 from .modules.security import run_security_hygiene
 
 class AuditEngine:
-    def __init__(self, target: str, api_key: str = None, seed_data: dict[str, Any] = None, base_url: str = None):
+    def __init__(self, target: str, api_key: str = None, seed_data: dict[str, Any] = None, base_url: str = None, allowed_domains: list[str] = None):
         self.target = target
         self.api_key = api_key
         self.seed_data = seed_data or {}
         self.base_url = base_url
+        self.allowed_domains = allowed_domains or []
         self.dynamic_cache = {}
         self.schema = None
 
@@ -73,5 +74,5 @@ class AuditEngine:
         return {
             "drift_check": run_drift_check(self.schema, self.base_url, self.api_key, self.seed_manager),
             "resilience": run_resilience_tests(self.schema, self.base_url, self.api_key, self.seed_manager),
-            "security": run_security_hygiene(self.schema, self.base_url, self.api_key)
+            "security": run_security_hygiene(self.schema, self.base_url, self.api_key, allowed_domains=self.allowed_domains)
         }

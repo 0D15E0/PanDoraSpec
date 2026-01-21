@@ -166,11 +166,12 @@ def _check_injection(ops, base_url: str, api_key: str = None) -> list[dict]:
     
     return results
 
-def _check_data_leakage(ops, base_url: str, api_key: str = None) -> list[dict]:
+def _check_data_leakage(ops, base_url: str, api_key: str = None, allowed_domains: list[str] = None) -> list[dict]:
     """
     Scans responses for PII and Secrets leakage (DLP).
     """
     results = []
+    allowed_domains = allowed_domains or []
     
     # regex patterns for sensitive data
     patterns = {
@@ -207,11 +208,24 @@ def _check_data_leakage(ops, base_url: str, api_key: str = None) -> list[dict]:
             for name, pattern in patterns.items():
                 matches = re.findall(pattern, resp.text)
                 if matches:
-                    if name not in leaks:
-                        leaks[name] = []
-                    # Store unique leaks per type, capped at 3 examples
-                    unique_matches = list(set(matches))[:3]
-                    leaks[name].append(f"{op.path} (Found: {', '.join(unique_matches)})")
+                    unique_matches = list(set(matches))
+                    
+                    # Allowlist Logic for Emails
+                    if name == "Email Address" and allowed_domains:
+                        filtered = []
+                        for m in unique_matches:
+                            # check if email ends with any allowed domain
+                            if not any(m.lower().endswith(f"@{d.lower()}") for d in allowed_domains):
+                                filtered.append(m)
+                            else:
+                                logger.debug(f"DLP: Ignoring allowed email {m}")
+                        unique_matches = filtered
+                    
+                    if unique_matches:
+                        if name not in leaks:
+                            leaks[name] = []
+                        # Store capped
+                        leaks[name].append(f"{op.path} (Found: {', '.join(unique_matches[:3])})")
                     
         except Exception:
             pass
@@ -239,7 +253,7 @@ def _check_data_leakage(ops, base_url: str, api_key: str = None) -> list[dict]:
 
     return results
 
-def run_security_hygiene(schema, base_url: str, api_key: str = None) -> list[dict]:
+def run_security_hygiene(schema, base_url: str, api_key: str = None, allowed_domains: list[str] = None) -> list[dict]:
     """
     Module C: Security Hygiene Check
     Checks for TLS, Auth leakage, Headers, and Basic Vulnerabilities.
@@ -306,6 +320,6 @@ def run_security_hygiene(schema, base_url: str, api_key: str = None) -> list[dic
         results.extend(_check_injection(ops, base_url, api_key))
 
         # 5. Check Data Leakage
-        results.extend(_check_data_leakage(ops, base_url, api_key))
+        results.extend(_check_data_leakage(ops, base_url, api_key, allowed_domains))
     
     return results
