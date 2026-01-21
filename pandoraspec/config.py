@@ -1,8 +1,12 @@
 from pydantic import BaseModel, Field, ValidationError
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from .utils.logger import logger
 
 class PandoraConfig(BaseModel):
+    target: Optional[str] = Field(None, description="Target URL or path to OpenAPI schema")
+    vendor: Optional[str] = Field(None, description="Vendor name for reports")
+    api_key: Optional[str] = Field(None, description="API Key for authenticated endpoints")
+    
     seed_data: Dict[str, Any] = Field(
         default_factory=dict, 
         description="Seed data for API testing. Keys can be parameter names or endpoint definitions (METHOD /path)."

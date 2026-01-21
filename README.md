@@ -199,6 +199,24 @@ pandoraspec init
 ```
 This will guide you through creating a `pandoraspec.yaml` file with your target URL, vendor name, and seed data templates.
 
+### Configuration File (`pandoraspec.yaml`)
+You can store your settings in a YAML file:
+
+```yaml
+target: "https://petstore.swagger.io/v2/swagger.json"
+vendor: "MyVendor"
+api_key: "my-secret-key"
+seed_data:
+  user_id: 123
+```
+
+**Precedence Rules:**
+1.  **CLI Arguments** (Highest Priority)
+2.  **Configuration File**
+3.  **Defaults** (Lowest Priority)
+
+Example:
+`pandoraspec --vendor "CLI Override" --config pandoraspec.yaml` will use the target from YAML but the vendor "CLI Override".
 ### ✅ Validate Configuration
 Ensure your configuration file is valid before running an audit:
 ```bash

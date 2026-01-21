@@ -8,9 +8,9 @@ app = typer.Typer(help="DORA Audit CLI - Verify Compliance of OpenAI Specs")
 console = Console()
 
 def run_audit(
-    target: str = typer.Argument(..., help="URL or path to OpenAPI schema"),
+    target: str = typer.Argument(None, help="URL or path to OpenAPI schema"),
     api_key: str = typer.Option(None, "--key", "-k", help="API Key for authenticated endpoints"),
-    vendor: str = typer.Option("Vendor", "--vendor", "-v", help="Vendor name for the report"),
+    vendor: str = typer.Option(None, "--vendor", "-v", help="Vendor name for the report"),
     config: str = typer.Option(None, "--config", "-c", help="Path to .yaml configuration file"),
     base_url: str = typer.Option(None, "--base-url", "-b", help="Override API Base URL"),
     output_format: str = typer.Option("pdf", "--format", "-f", help="Report format (pdf, json, junit)"),

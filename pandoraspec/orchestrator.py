@@ -40,31 +40,41 @@ def run_dora_audit_logic(
     """
     # 1. Load Config
     seed_data = {}
+    config_data = PandoraConfig()
+
     if config_path:
         config_data = load_config(config_path)
         seed_data = config_data.seed_data
     
-    # 2. Initialize Engine
+    # 2. Merge Configuration (CLI > Config > Default)
+    final_target = target or config_data.target
+    if not final_target:
+        raise ValueError("Target URL/Path must be provided locally (CLI) or via configuration file.")
+
+    final_vendor = vendor or config_data.vendor or "Vendor"
+    final_api_key = api_key or config_data.api_key
+
+    # 3. Initialize Engine
     engine = AuditEngine(
-        target=target, 
-        api_key=api_key, 
+        target=final_target, 
+        api_key=final_api_key, 
         seed_data=seed_data, 
         base_url=base_url
     )
     
-    # 3. Run Audit
-    logger.info(f"Starting audit for {target}")
+    # 4. Run Audit
+    logger.info(f"Starting audit for {final_target} (Vendor: {final_vendor})")
     results = engine.run_full_audit()
     
     from .reporting.junit import generate_junit_xml
 
-    # 4. Generate Report
+    # 5. Generate Report
     if output_format.lower() == "json":
-        report_path = generate_json_report(vendor, results, output_path=output_path)
+        report_path = generate_json_report(final_vendor, results, output_path=output_path)
     elif output_format.lower() == "junit":
-        report_path = generate_junit_xml(vendor, results, output_path=output_path)
+        report_path = generate_junit_xml(final_vendor, results, output_path=output_path)
     else:
-        report_path = generate_report(vendor, results, output_path=output_path)
+        report_path = generate_report(final_vendor, results, output_path=output_path)
     
     return AuditRunResult(
         results=results,
