@@ -8,6 +8,7 @@ from ..constants import (
     RECOVERY_WAIT_TIME,
 )
 from ..seed import SeedManager
+from ..utils.http import build_auth_header
 from ..utils.logger import logger
 
 
@@ -25,152 +26,138 @@ def run_resilience_tests(schema, base_url: str, api_key: str, seed_manager: Seed
 
     operation = ops[0].ok() if hasattr(ops[0], "ok") else ops[0]
 
-    # Simulate flooding
+    auth_header_value = build_auth_header(api_key) if api_key else None
+
+    # --- Flood Phase ---
     responses = []
     latencies = []
 
     for _ in range(FLOOD_REQUEST_COUNT):
         try:
             case = operation.as_strategy().example()
-        except (AttributeError, Exception):
+        except Exception:
             try:
                 cases = list(operation.make_case())
                 case = cases[0] if cases else None
-            except (AttributeError, Exception):
+            except Exception:
                 case = None
 
-        if case:
-            seed_manager.apply_seed_data(case)
+        if not case:
+            continue
 
-            headers = {}
-            if api_key:
-                auth_header = api_key if api_key.lower().startswith("bearer ") else f"Bearer {api_key}"
-                headers["Authorization"] = auth_header
+        seed_manager.apply_seed_data(case)
 
-            try:
-                resp = case.call(base_url=base_url, headers=headers)
-                responses.append(resp)
-                # Capture latency if available
-                if hasattr(resp, 'elapsed'):
-                    if hasattr(resp.elapsed, 'total_seconds'):
-                        latencies.append(resp.elapsed.total_seconds())
-                    elif isinstance(resp.elapsed, (int, float)):
-                        latencies.append(float(resp.elapsed))
-                    else:
-                        latencies.append(0.0)
+        headers = {"Authorization": auth_header_value} if auth_header_value else {}
+
+        try:
+            resp = case.call(base_url=base_url, headers=headers)
+            responses.append(resp)
+
+            if hasattr(resp, "elapsed"):
+                if hasattr(resp.elapsed, "total_seconds"):
+                    latencies.append(resp.elapsed.total_seconds())
+                elif isinstance(resp.elapsed, (int, float)):
+                    latencies.append(float(resp.elapsed))
                 else:
                     latencies.append(0.0)
-            except Exception as e:
-                logger.warning(f"Request failed during flood: {e}")
+            else:
+                latencies.append(0.0)
+        except Exception as e:
+            logger.warning(f"Request failed during flood: {e}")
 
     has_429 = any(r.status_code == HTTP_429_TOO_MANY_REQUESTS for r in responses)
     has_500 = any(r.status_code == HTTP_500_INTERNAL_SERVER_ERROR for r in responses)
-
     avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
 
-    # Recovery Check (Circuit Breaker)
+    # --- Recovery Phase ---
     logger.info(f"Waiting {RECOVERY_WAIT_TIME}s for circuit breaker recovery check...")
     time.sleep(RECOVERY_WAIT_TIME)
 
     recovery_failed = False
     try:
-        # Attempt one probe request to see if API is back to normal
-        # We regenerate a case to be safe
         try:
             recovery_case = operation.as_strategy().example()
         except Exception:
-             cases = list(operation.make_case())
-             recovery_case = cases[0] if cases else None
+            cases = list(operation.make_case())
+            recovery_case = cases[0] if cases else None
 
         if recovery_case:
             seed_manager.apply_seed_data(recovery_case)
-            rec_headers = {}
-            if api_key:
-                rec_headers["Authorization"] = api_key if api_key.lower().startswith("bearer ") else f"Bearer {api_key}"
-
+            rec_headers = {"Authorization": auth_header_value} if auth_header_value else {}
             recovery_resp = recovery_case.call(base_url=base_url, headers=rec_headers)
 
-            # If it returns 500, it's definitely NOT recovered
             if recovery_resp.status_code == HTTP_500_INTERNAL_SERVER_ERROR:
                 recovery_failed = True
-            # Note: We count 429 as "still waiting" but not a crash, so technically "recovered" from error state?
-            # Ideally it should be 200, but ensuring no 500 is the critical resilience check here.
     except Exception:
-        # Connection error means it's down
+        # Connection error means the service is still down
         recovery_failed = True
 
-    # Helper to create consistent result objects
-    def _create_result(issue: str, status: str, details: str, severity: str) -> dict[str, str]:
-        return {
-            "module": "B",
-            "issue": issue,
-            "status": status,
-            "details": details,
-            "severity": severity
-        }
+    def _result(issue: str, status: str, details: str, severity: str) -> dict[str, str]:
+        return {"module": "B", "issue": issue, "status": status, "details": details, "severity": severity}
 
-    # 1. Rate Limiting Check
+    # 1. Rate Limiting
     if has_429:
-         results.append(_create_result(
+        results.append(_result(
             "Rate Limiting Functional",
             "PASS",
             f"The API correctly returned {HTTP_429_TOO_MANY_REQUESTS} Too Many Requests when flooded.",
-            "INFO"
+            "INFO",
         ))
     else:
-        results.append(_create_result(
+        results.append(_result(
             "No Rate Limiting Enforced",
             "FAIL",
             f"The API did not return {HTTP_429_TOO_MANY_REQUESTS} Too Many Requests during high volume testing.",
-            "MEDIUM"
+            "MEDIUM",
         ))
 
-    # 2. Stress Handling Check (500 Errors)
+    # 2. Stress Handling (500 Errors)
     if has_500:
-        results.append(_create_result(
+        results.append(_result(
             "Poor Resilience: 500 Error during flood",
             "FAIL",
-            f"The API returned {HTTP_500_INTERNAL_SERVER_ERROR} Internal Server Error instead of {HTTP_429_TOO_MANY_REQUESTS} Too Many Requests when flooded.",
-            "CRITICAL"
+            f"The API returned {HTTP_500_INTERNAL_SERVER_ERROR} Internal Server Error instead of "
+            f"{HTTP_429_TOO_MANY_REQUESTS} Too Many Requests when flooded.",
+            "CRITICAL",
         ))
     else:
-        results.append(_create_result(
+        results.append(_result(
             "Stress Handling",
             "PASS",
             f"No {HTTP_500_INTERNAL_SERVER_ERROR} Internal Server Errors were observed during stress testing.",
-            "INFO"
+            "INFO",
         ))
 
-    # 3. Latency Check
+    # 3. Latency
     if avg_latency > LATENCY_THRESHOLD_WARN:
-        results.append(_create_result(
+        results.append(_result(
             "Performance Degradation",
             "FAIL",
             f"Average latency during stress was {avg_latency:.2f}s (Threshold: {LATENCY_THRESHOLD_WARN}s).",
-            "WARNING"
+            "WARNING",
         ))
     else:
-         results.append(_create_result(
+        results.append(_result(
             "Performance Stability",
             "PASS",
             f"Average latency {avg_latency:.2f}s remained within acceptable limits.",
-            "INFO"
+            "INFO",
         ))
 
-    # 4. Recovery Check
+    # 4. Recovery
     if recovery_failed:
-         results.append(_create_result(
+        results.append(_result(
             "Recovery Failure",
             "FAIL",
             f"API failed to recover (returned {HTTP_500_INTERNAL_SERVER_ERROR} or crash) after {RECOVERY_WAIT_TIME}s cooldown.",
-            "HIGH"
+            "HIGH",
         ))
     else:
-        results.append(_create_result(
+        results.append(_result(
             "Self-Healing / Recovery",
             "PASS",
             f"API successfully handled legitimate requests after {RECOVERY_WAIT_TIME}s cooldown.",
-            "INFO"
+            "INFO",
         ))
 
     return results

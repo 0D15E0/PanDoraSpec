@@ -1,8 +1,15 @@
+import json
 import os
 from typing import Any
 
 from ..config import PandoraConfig
 from ..utils.logger import logger
+
+try:
+    import openai as _openai_module
+    _OPENAI_AVAILABLE = True
+except ImportError:
+    _OPENAI_AVAILABLE = False
 
 
 def run_ai_assessment(spec_schema: Any, aggregated_results: dict[str, list[dict]], config: PandoraConfig) -> list[dict]:
@@ -15,34 +22,29 @@ def run_ai_assessment(spec_schema: Any, aggregated_results: dict[str, list[dict]
         logger.warning("Module E Skipped: No OPENAI_API_KEY provided.")
         return []
 
-    try:
-        import openai
-    except ImportError:
+    if not _OPENAI_AVAILABLE:
         logger.warning("Module E Skipped: 'openai' package not installed.")
         return []
 
     logger.info("AUDIT LOG: Starting Module E: AI Risk Assessment...")
 
-    # Initialize OpenAI Client
-    client = openai.OpenAI(api_key=api_key)
+    client = _openai_module.OpenAI(api_key=api_key)
 
-    # 1. Summarize Findings
+    # 1. Summarize findings
     summary_text = _summarize_technical_findings(aggregated_results)
 
-    # 2. Extract API Info
+    # 2. Extract API metadata
     api_title = "Unknown API"
+    description = "No description available."
     try:
-        # schemathesis schema -> raw schema
         if hasattr(spec_schema, "raw_schema"):
             info = spec_schema.raw_schema.get("info", {})
             api_title = info.get("title", "Unknown API")
-            description = info.get("description", "")
-        else:
-            description = "No description available."
+            description = info.get("description", description)
     except Exception:
-        description = "No description available."
+        pass
 
-    # 3. Construct Prompt
+    # 3. Construct prompt
     prompt = f"""
     You are a Virtual CISO (Chief Information Security Officer) auditing an API for DORA (Digital Operational Resilience Act) compliance.
 
@@ -71,43 +73,47 @@ def run_ai_assessment(spec_schema: Any, aggregated_results: dict[str, list[dict]
             model=config.ai_model,
             messages=[
                 {"role": "system", "content": "You are a strict, risk-focused security auditor."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
         content = response.choices[0].message.content
         if not content:
             raise ValueError("Empty response from AI")
 
-        import json
         assessment = json.loads(content)
 
-        # Convert to standard result format
         result = {
             "module": "E",
             "issue": "AI Risk Assessment",
             "status": assessment.get("verdict", "FAIL"),
-            "details": f"Risk Score: {assessment.get('risk_score', 10)}/10. {assessment.get('executive_summary', 'No summary provided.')}",
-            "severity": "CRITICAL" if assessment.get("verdict") == "FAIL" else "INFO"
+            "details": (
+                f"Risk Score: {assessment.get('risk_score', 10)}/10. "
+                f"{assessment.get('executive_summary', 'No summary provided.')}"
+            ),
+            "severity": "CRITICAL" if assessment.get("verdict") == "FAIL" else "INFO",
         }
         return [result]
 
     except Exception as e:
         logger.error(f"Module E Failed: {e}")
-        return [{
-            "module": "E",
-            "issue": "AI Assessment Error",
-            "status": "FAIL",
-            "details": f"Failed to consult AI: {str(e)}",
-            "severity": "LOW"
-        }]
+        return [
+            {
+                "module": "E",
+                "issue": "AI Assessment Error",
+                "status": "FAIL",
+                "details": f"Failed to consult AI: {str(e)}",
+                "severity": "LOW",
+            }
+        ]
+
 
 def _summarize_technical_findings(results: dict[str, list[dict]]) -> str:
     summary = []
 
     for module, checks in results.items():
-        failures = [c for c in checks if c["status"] == "FAIL"]
+        failures = [c for c in checks if c.get("status") == "FAIL"]
         if failures:
             summary.append(f"\n[{module.upper()}] Failures:")
             for f in failures:

@@ -11,19 +11,17 @@ RESULTS_FAIL_RESILIENCE = {
     ]
 }
 
+
 def test_ai_module_skipped_no_key():
     config = PandoraConfig(openai_api_key=None)
     results = run_ai_assessment(None, RESULTS_PASS, config)
     assert results == []
 
-@patch.dict('sys.modules', {'openai': MagicMock()})
-def test_ai_module_pass_scenario():
-    # Setup Mock
-    import openai  # Now it exists
+
+@patch('pandoraspec.modules.ai_judge._openai_module')
+def test_ai_module_pass_scenario(mock_openai):
     mock_client = MagicMock()
-    # We need to assign it to the mocked module
-    openai.OpenAI = MagicMock() # type: ignore
-    openai.OpenAI.return_value = mock_client
+    mock_openai.OpenAI.return_value = mock_client
 
     mock_response = MagicMock()
     mock_response.choices[0].message.content = '{"risk_score": 0, "verdict": "PASS", "executive_summary": "All good."}'
@@ -38,12 +36,11 @@ def test_ai_module_pass_scenario():
     assert "Risk Score: 0/10" in results[0]["details"]
     assert "All good" in results[0]["details"]
 
-@patch.dict('sys.modules', {'openai': MagicMock()})
-def test_ai_module_fail_scenario():
-    import openai
+
+@patch('pandoraspec.modules.ai_judge._openai_module')
+def test_ai_module_fail_scenario(mock_openai):
     mock_client = MagicMock()
-    openai.OpenAI = MagicMock() # type: ignore
-    openai.OpenAI.return_value = mock_client
+    mock_openai.OpenAI.return_value = mock_client
 
     mock_response = MagicMock()
     mock_response.choices[0].message.content = '{"risk_score": 8, "verdict": "FAIL", "executive_summary": "Critical resilience failure detected."}'
@@ -58,12 +55,11 @@ def test_ai_module_fail_scenario():
     assert "Risk Score: 8/10" in results[0]["details"]
     assert "Critical resilience" in results[0]["details"]
 
-@patch.dict('sys.modules', {'openai': MagicMock()})
-def test_ai_module_invalid_response():
-    import openai
+
+@patch('pandoraspec.modules.ai_judge._openai_module')
+def test_ai_module_invalid_response(mock_openai):
     mock_client = MagicMock()
-    openai.OpenAI = MagicMock() # type: ignore
-    openai.OpenAI.return_value = mock_client
+    mock_openai.OpenAI.return_value = mock_client
 
     mock_response = MagicMock()
     mock_response.choices[0].message.content = 'NOT A JSON'

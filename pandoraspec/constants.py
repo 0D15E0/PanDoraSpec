@@ -4,10 +4,10 @@ FLOOD_REQUEST_COUNT = 20
 # Security Hygiene
 SENSITIVE_PATH_KEYWORDS = ["key", "token"]
 
-LATENCY_THRESHOLD_WARN = 1.0 # Seconds
-RECOVERY_WAIT_TIME = 2.0 # Seconds
+LATENCY_THRESHOLD_WARN = 1.0  # Seconds
+RECOVERY_WAIT_TIME = 2.0  # Seconds
 
-SECURITY_SCAN_LIMIT = 3 # Max endpoints to probe per security check
+SECURITY_SCAN_LIMIT = 3  # Max endpoints to probe per security check
 
 # HTTP Status Codes
 HTTP_200_OK = 200
@@ -18,3 +18,6 @@ HTTP_500_INTERNAL_SERVER_ERROR = 500
 
 # AI Auditor
 DEFAULT_AI_MODEL = "gpt-4o"
+
+# Reporting
+COMPLIANCE_THRESHOLD = 80  # Minimum score (0-100) to be considered compliant

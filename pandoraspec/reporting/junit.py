@@ -1,3 +1,4 @@
+import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any
@@ -13,7 +14,6 @@ def generate_junit_xml(vendor: str, results: dict[str, list[dict[str, Any]]], ou
     total_failures = 0
 
     for module_name, checks in results.items():
-        # Clean up module name for display
         display_name = module_name.replace("_", " ").title()
 
         testsuite = ET.SubElement(testsuites, "testsuite", name=display_name)
@@ -25,7 +25,6 @@ def generate_junit_xml(vendor: str, results: dict[str, list[dict[str, Any]]], ou
             tests += 1
             status = check.get("status", "UNKNOWN")
 
-            # Use 'endpoint' or 'check_id' or generic name
             case_name = check.get("endpoint", "General Check")
             msg = check.get("message", "")
 
@@ -42,10 +41,9 @@ def generate_junit_xml(vendor: str, results: dict[str, list[dict[str, Any]]], ou
         total_tests += tests
         total_failures += failures
 
-    # Set globals
     testsuites.set("tests", str(total_tests))
     testsuites.set("failures", str(total_failures))
-    testsuites.set("time", "0.0") # We don't track time yet
+    testsuites.set("time", "0.0")  # Execution time is not tracked yet
 
     tree = ET.ElementTree(testsuites)
 
@@ -53,9 +51,6 @@ def generate_junit_xml(vendor: str, results: dict[str, list[dict[str, Any]]], ou
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = f"reports/dora_junit_{timestamp}.xml"
 
-    # Ensure reports dir exists
-    import os
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
     tree.write(output_path, encoding="utf-8", xml_declaration=True)
     return output_path
