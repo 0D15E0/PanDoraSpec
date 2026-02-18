@@ -7,6 +7,7 @@ import yaml
 from .config import PandoraConfig, validate_config
 from .core import AuditEngine
 from .reporting.generator import generate_json_report, generate_report
+from .reporting.junit import generate_junit_xml
 from .utils.logger import logger
 
 
@@ -17,18 +18,20 @@ class AuditRunResult:
     seed_count: int
 
 
-
-
 def load_config(config_path: str) -> PandoraConfig:
     if config_path and os.path.exists(config_path):
         try:
             with open(config_path, "r") as f:
                 raw_data = yaml.safe_load(f) or {}
-                return validate_config(raw_data)
+            return validate_config(raw_data)
         except Exception as e:
-            logger.error(f"Failed to load or validate config from {config_path}: {e}")
+            logger.warning(
+                f"Failed to load or validate config from '{config_path}': {e}. "
+                "Falling back to default configuration — CLI arguments will be used instead."
+            )
             return PandoraConfig()
     return PandoraConfig()
+
 
 def run_dora_audit_logic(
     target: str | None,
@@ -38,15 +41,15 @@ def run_dora_audit_logic(
     base_url: str | None = None,
     output_format: str = "pdf",
     output_path: str | None = None,
-    ai_model: str | None = None
+    ai_model: str | None = None,
 ) -> AuditRunResult:
     """
     Orchestrates the DORA audit: loads config, runs engine, generates report.
-    Decoupled from CLI/Printing.
+    Decoupled from CLI/printing concerns.
     """
     # 1. Load Config
-    seed_data = {}
     config_data = PandoraConfig()
+    seed_data: dict[str, Any] = {}
 
     if config_path:
         config_data = load_config(config_path)
@@ -55,12 +58,12 @@ def run_dora_audit_logic(
     # 2. Merge Configuration (CLI > Config > Default)
     final_target = target or config_data.target
     if not final_target:
-        raise ValueError("Target URL/Path must be provided locally (CLI) or via configuration file.")
+        raise ValueError("Target URL/Path must be provided via CLI argument or 'target' in the configuration file.")
 
     final_vendor = vendor or config_data.vendor or "Vendor"
     final_api_key = api_key or config_data.api_key
 
-    # Override AI Model if provided via CLI
+    # CLI --model overrides config
     if ai_model:
         config_data.ai_model = ai_model
 
@@ -70,15 +73,13 @@ def run_dora_audit_logic(
         api_key=final_api_key,
         seed_data=seed_data,
         base_url=base_url,
-        allowed_domains=getattr(config_data, "dlp_allowed_domains", []),
-        config=config_data # Pass full config for AI module
+        allowed_domains=config_data.dlp_allowed_domains,
+        config=config_data,
     )
 
     # 4. Run Audit
     logger.info(f"Starting audit for {final_target} (Vendor: {final_vendor})")
     results = engine.run_full_audit()
-
-    from .reporting.junit import generate_junit_xml
 
     # 5. Generate Report
     if output_format.lower() == "json":
@@ -91,5 +92,5 @@ def run_dora_audit_logic(
     return AuditRunResult(
         results=results,
         report_path=report_path,
-        seed_count=len(seed_data)
+        seed_count=len(seed_data),
     )

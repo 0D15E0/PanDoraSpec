@@ -15,93 +15,110 @@ from .utils.url import derive_base_url_from_target
 
 
 class AuditEngine:
-    def __init__(self, target: str, api_key: str | None = None, seed_data: dict[str, Any] | None = None, base_url: str | None = None, allowed_domains: list[str] | None = None, config: PandoraConfig | None = None) -> None:
+    def __init__(
+        self,
+        target: str,
+        api_key: str | None = None,
+        seed_data: dict[str, Any] | None = None,
+        base_url: str | None = None,
+        allowed_domains: list[str] | None = None,
+        config: PandoraConfig | None = None,
+    ) -> None:
         self.target = target
         self.api_key = api_key
         self.seed_data = seed_data or {}
         self.base_url = base_url
         self.allowed_domains = allowed_domains or []
-        self.config = config or PandoraConfig() # Store full config
-        self.dynamic_cache: dict[str, Any] = {}
+        self.config = config or PandoraConfig()
         self.schema = None
 
+        # -------------------------------------------------
+        # Schema Loading
+        # -------------------------------------------------
         try:
             if os.path.exists(target) and os.path.isfile(target):
-                 logger.debug(f"Loading schema from local file: {target}")
-                 self.schema = schemathesis.openapi.from_path(target)
+                logger.debug(f"Loading schema from local file: {target}")
+                self.schema = schemathesis.openapi.from_path(target)
             else:
-                 self.schema = schemathesis.openapi.from_url(target)
+                self.schema = schemathesis.openapi.from_url(target)
 
-            # If base_url was manually provided, we skip dynamic resolution
+            resolved_url: str | None = None
+
             if self.base_url:
+                # Manual override takes highest priority
                 logger.debug(f"Using manual override base_url: {self.base_url}")
                 resolved_url = self.base_url
             else:
                 # Priority 1: Extract from the 'servers' field in the spec
-                resolved_url = None
                 if hasattr(self.schema, "raw_schema"):
                     servers = self.schema.raw_schema.get("servers", [])
-                    if servers and isinstance(servers, list) and len(servers) > 0:
+                    if servers and isinstance(servers, list):
                         spec_server_url = servers[0].get("url")
                         if spec_server_url:
                             resolved_url = spec_server_url
                             logger.debug(f"Found server URL in specification: {resolved_url}")
 
-            # Priority 2: Use whatever schemathesis resolved automatically (fallback)
-            if not resolved_url:
-                resolved_url = getattr(self.schema, "base_url", None)
-                logger.debug(f"Falling back to Schemathesis resolved base_url: {resolved_url}")
+                # Priority 2: Schemathesis resolved URL (fallback)
+                if not resolved_url:
+                    resolved_url = getattr(self.schema, "base_url", None)
+                    logger.debug(f"Falling back to Schemathesis resolved base_url: {resolved_url}")
 
-            if not resolved_url:
-                # Fallback: Derive from target URL
-                derived = derive_base_url_from_target(self.target)
-                if derived:
-                   resolved_url = derived
-                   logger.debug(f"Derived base_url from schema_url: {resolved_url}")
+                # Priority 3: Derive from the target URL itself
+                if not resolved_url:
+                    resolved_url = derive_base_url_from_target(self.target)
+                    if resolved_url:
+                        logger.debug(f"Derived base_url from schema URL: {resolved_url}")
 
             logger.debug(f"Final resolved base_url for engine: {resolved_url}")
             self.base_url = resolved_url
+
             if resolved_url:
                 try:
-                    self.schema.base_url = resolved_url # type: ignore
+                    self.schema.base_url = resolved_url  # type: ignore[assignment]
                 except Exception:
-                    pass
-        except Exception as e:
-             # Handle invalid URL or schema loading error gracefully
-             logger.error(f"Error loading schema: {e}")
-             if target and (target.startswith("http") or os.path.exists(target)):
-                pass # Allow to continue if it's just a warning, but schemathesis might fail later
-             else:
-                raise ValueError(f"Failed to load OpenAPI schema from {target}. Error: {str(e)}")
+                    pass  # Some schemathesis versions make base_url read-only; safe to ignore
 
-        # -----------------------------------------------------
+        except Exception as e:
+            logger.error(f"Error loading schema from '{target}': {e}")
+            raise ValueError(f"Failed to load OpenAPI schema from '{target}'. Error: {e}") from e
+
+        # -------------------------------------------------
         # Dynamic Authentication Hook
-        # -----------------------------------------------------
+        # -------------------------------------------------
         if self.config.auth_hook:
             logger.info("Auth Hook detected. Executing pre-audit authentication script...")
             try:
-                token = load_and_execute_hook(self.config.auth_hook.path, self.config.auth_hook.function_name)
+                token = load_and_execute_hook(
+                    self.config.auth_hook.path,
+                    self.config.auth_hook.function_name,
+                )
                 logger.info(f"Auth Hook executed successfully. Token received (len={len(token)}).")
                 self.api_key = token
             except Exception as e:
                 logger.error(f"Failed to execute Auth Hook: {e}")
-                raise e
+                raise
 
-        # Initialize Seed Manager
+        # -------------------------------------------------
+        # Seed Manager
+        # -------------------------------------------------
         self.seed_manager = SeedManager(self.seed_data, self.base_url, self.api_key)
 
     def run_full_audit(self) -> dict:
-        # Ensure base_url is strictly string (or fail if logic broke)
+        """Runs all audit modules and returns their combined results."""
         final_base_url = self.base_url or ""
+        final_api_key = self.api_key or ""
 
         results = {
-            "drift_check": run_drift_check(self.schema, final_base_url, self.api_key or "", self.seed_manager),
-            "resilience": run_resilience_tests(self.schema, final_base_url, self.api_key or "", self.seed_manager),
-            "security": run_security_hygiene(self.schema, final_base_url, self.api_key or "", allowed_domains=self.allowed_domains)
+            "drift_check": run_drift_check(self.schema, final_base_url, final_api_key, self.seed_manager),
+            "resilience": run_resilience_tests(self.schema, final_base_url, final_api_key, self.seed_manager),
+            "security": run_security_hygiene(
+                self.schema,
+                final_base_url,
+                self.api_key,  # Optional — modules handle None
+                allowed_domains=self.allowed_domains,
+            ),
         }
 
-        # 6. Run AI Assessment
-        # config is properly typed
         ai_results = run_ai_assessment(self.schema, results, self.config)
         results["ai_auditor"] = ai_results
 
