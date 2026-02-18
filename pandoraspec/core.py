@@ -74,7 +74,7 @@ class AuditEngine:
 
             if resolved_url:
                 try:
-                    self.schema.base_url = resolved_url  # type: ignore[assignment]
+                    self.schema.base_url = resolved_url  # type: ignore[attr-defined]
                 except Exception:
                     pass  # Some schemathesis versions make base_url read-only; safe to ignore
 
